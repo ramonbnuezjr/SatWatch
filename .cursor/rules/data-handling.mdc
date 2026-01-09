@@ -1,0 +1,49 @@
+---
+description: "TLE parsing and Skyfield usage patterns"
+globs: ["src/**/*.py"]
+alwaysApply: false
+---
+
+# Data Handling Guidelines
+
+## TLE (Two-Line Element) Format
+- TLE data consists of 3 lines: name, line 1, line 2
+- Download from CelesTrak: `https://celestrak.org/NORAD/elements/stations.txt`
+- ISS NORAD ID: 25544
+- TLE data expires after ~2 weeks, refresh regularly
+
+## Skyfield Usage Patterns
+- Load TLE data using `load.tle_file()` or `load.tle()` for strings
+- Use `ts.now()` for current time
+- Calculate positions with `.at(time)`
+- Convert to geographic coordinates with `.subpoint()`
+
+## Error Handling
+- Validate TLE format before processing
+- Handle network errors when downloading TLE
+- Check for expired TLE data
+- Validate coordinate ranges (latitude: -90 to 90, longitude: -180 to 180)
+
+## Data Storage
+- Cache TLE data locally to reduce API calls
+- Store with timestamp to track freshness
+- Consider using JSON for structured satellite data
+
+## Example Pattern
+```python
+from skyfield.api import load, EarthSatellite
+from skyfield.api import Topos
+
+# Load TLE
+ts = load.timescale()
+satellites = load.tle_file('stations.txt')
+iss = satellites['ISS']
+
+# Calculate position
+t = ts.now()
+geocentric = iss.at(t)
+subpoint = geocentric.subpoint()
+lat = subpoint.latitude.degrees
+lon = subpoint.longitude.degrees
+alt = subpoint.elevation.km
+```

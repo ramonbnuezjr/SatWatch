@@ -1,0 +1,12 @@
+# SatWatch Project Dependencies
+# Install with: pip install -r requirements.txt
+
+# Skyfield: Astronomical calculations and satellite position tracking
+skyfield>=1.46
+
+# Requests: HTTP library for downloading TLE data from CelesTrak
+requests>=2.31.0
+
+# NumPy: Numerical computations (required by Skyfield)
+numpy>=1.24.0
+

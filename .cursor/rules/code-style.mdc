@@ -1,0 +1,41 @@
+---
+description: "Python code style and conventions for SatWatch project"
+globs: ["src/**/*.py", "scripts/**/*.py"]
+alwaysApply: true
+---
+
+# Code Style Guidelines
+
+## Naming Conventions
+- Use `snake_case` for functions, variables, and file names
+- Use `PascalCase` for class names
+- Use `UPPER_CASE` for constants
+- Use descriptive names that explain purpose
+
+## Formatting
+- Follow PEP 8 style guide
+- Use 4 spaces for indentation (no tabs)
+- Maximum line length: 100 characters
+- Add blank lines between functions and classes
+
+## Documentation
+- All functions must have docstrings (Google style)
+- Include type hints where appropriate
+- Add comments for complex logic
+
+## Example
+```python
+def calculate_satellite_position(tle_data: str, time: Time) -> tuple[float, float, float]:
+    """
+    Calculate satellite position from TLE data.
+    
+    Args:
+        tle_data: Two-line element set data
+        time: Skyfield Time object
+        
+    Returns:
+        Tuple of (latitude, longitude, altitude) in degrees and kilometers
+    """
+    # Implementation here
+    pass
+```

@@ -1,0 +1,37 @@
+---
+description: "Project context and AI behavior guidelines for SatWatch"
+globs: ["**/*"]
+alwaysApply: true
+---
+
+# SatWatch Project Instructions
+
+## Project Overview
+SatWatch is a satellite traffic monitoring system. The goal is to track satellites in real-time, calculate their positions, and eventually build a comprehensive monitoring dashboard.
+
+## Current Phase
+- **Step 1**: Basic ISS tracking with TLE data from CelesTrak
+- Future: Expand to multiple satellites, visualization, alerts
+
+## Key Libraries
+- **Skyfield**: Astronomical calculations and satellite position tracking
+- **Requests**: HTTP requests for downloading TLE data
+- **NumPy**: Numerical computations (dependency of Skyfield)
+
+## Data Sources
+- **CelesTrak**: Primary source for TLE (Two-Line Element) data
+- TLE format: Standard format for satellite orbital elements
+
+## AI Assistant Behavior
+- Explain code clearly for beginners
+- Use simple, readable code over clever optimizations
+- Include comments and docstrings
+- Provide installation instructions
+- Show how to run scripts
+- Break down complex concepts step-by-step
+
+## Code Philosophy
+- Start simple, iterate
+- Validate inputs
+- Handle errors gracefully
+- Make it easy to understand and modify
