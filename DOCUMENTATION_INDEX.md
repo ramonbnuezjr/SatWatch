@@ -86,8 +86,38 @@ This document provides an overview of all documentation files in the SatWatch pr
 - Known limitations
 - Best practices established
 - Key takeaways
+- Recent issues and resolution attempts
 
 **When to read:** To understand project status, learn from past challenges, or before contributing.
+
+---
+
+### ERROR_RESOLUTION_LOG.md
+**Purpose:** Detailed log of all errors encountered and resolution attempts  
+**Audience:** Developers debugging issues or understanding error history  
+**Contents:**
+- Complete error log with error messages
+- Root cause analysis
+- All resolution attempts and results
+- Current status of each issue
+- Lessons learned
+- Recommendations
+
+**When to read:** When debugging issues, understanding error history, or before implementing similar features.
+
+---
+
+### CHANGELOG.md
+**Purpose:** Change history and updates  
+**Audience:** All developers and contributors  
+**Contents:**
+- Completed features
+- Technical improvements
+- Issues resolved
+- Lessons learned
+- Version history
+
+**When to read:** To see what's changed recently or track project evolution.
 
 ---
 

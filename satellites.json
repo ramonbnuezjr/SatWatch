@@ -1,0 +1,19 @@
+{
+  "tracked_satellites": [
+    {
+      "name": "ISS",
+      "catnr": 25544,
+      "type": "station"
+    },
+    {
+      "name": "Hubble Space Telescope",
+      "catnr": 20580,
+      "type": "satellite"
+    },
+    {
+      "name": "Tiangong Space Station",
+      "catnr": 48274,
+      "type": "station"
+    }
+  ]
+}

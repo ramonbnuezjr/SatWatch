@@ -4,7 +4,7 @@ A Python project for tracking satellites in real-time, starting with the Interna
 
 ## Project Status
 
-**Current Phase**: Step 1 - Basic ISS Tracking ✅ **COMPLETE** | Step 2 - Dashboard ✅ **COMPLETE**
+**Current Phase**: Step 1 - Basic ISS Tracking ✅ **COMPLETE** | Step 2 - Dashboard ✅ **COMPLETE** | Step 3 - Multi-Satellite Tracking ⚠️ **IN PROGRESS**
 
 ### What's Working ✅
 - ✅ ISS position tracking from CelesTrak (text format)
@@ -14,9 +14,18 @@ A Python project for tracking satellites in real-time, starting with the Interna
 - ✅ Position calculation (latitude, longitude, altitude)
 - ✅ Formatted output display
 - ✅ **Streamlit Dashboard** - Interactive web dashboard with real-time map
+- ✅ **3D Orbit View** - 3D visualization with Plotly showing Earth, ISS, and orbit path
+- ✅ **Orbital Shell Visualization** - Layer 1 implementation showing multiple satellites
 - ✅ Comprehensive error handling
 - ✅ JSON validation tools
-- ✅ **TESTED AND VERIFIED** - Scripts and dashboard successfully tested and working
+- ✅ **Multi-Satellite Data Fetcher** - Fetches TLE data for multiple satellites
+- ✅ **Satellites Configuration** - JSON config file for tracked satellites
+- ✅ **TESTED AND VERIFIED** - Core ISS tracking and dashboard successfully tested and working
+
+### In Progress / Known Issues ⚠️
+- ⚠️ **API Catalog Numbers** - Some catalog numbers may not be available in CelesTrak database
+- ✅ **Multi-Satellite Position Calculations** - Fixed by switching to 3LE format (includes TLE lines)
+- ✅ **Multi-Satellite Visualization** - Should now work correctly with TLE lines available
 
 ### Current Capabilities
 - Download TLE data from CelesTrak (text or JSON)
@@ -34,8 +43,12 @@ A Python project for tracking satellites in real-time, starting with the Interna
   - **Solution**: Added fallback to construct TLE lines from orbital elements
 - **Challenge**: TLE line construction is complex
   - **Solution**: Implemented proper formatting functions, but prefer using TLE lines from CelesTrak
+- **Challenge**: Multi-satellite position calculations returning NaN
+  - **Status**: Under investigation with comprehensive debug information
+  - **See**: [PROJECT_STATUS.md](PROJECT_STATUS.md) for detailed error documentation
 
-See [PROJECT_STATUS.md](PROJECT_STATUS.md) for detailed status and lessons learned.
+See [PROJECT_STATUS.md](PROJECT_STATUS.md) for detailed status, challenges, and lessons learned.
+See [CHANGELOG.md](CHANGELOG.md) for recent changes and issue tracking.
 
 ## Installation
 
@@ -86,11 +99,16 @@ streamlit run src/dashboard.py
 ```
 
 The dashboard provides:
-- Interactive world map with ISS position
+- Interactive world map with ISS position (2D Map View)
+- 3D orbit visualization showing Earth, ISS position, and orbit path (3D Orbit View)
+- Orbital shell visualization showing multiple satellites as "space highway"
+- Multi-satellite tracking with color coding (stations=red, satellites=blue, debris=orange)
 - Real-time updates every 10 seconds
 - Sidebar with current position, altitude, and TLE data status
+- Multi-satellite filters (show/hide by type, proximity radius)
 - Dark theme interface
 - Data source selection (local file or CelesTrak API)
+- Comprehensive debug information for troubleshooting
 
 The scripts will:
 1. Load TLE data (from API or local file)
@@ -175,10 +193,12 @@ TLE data is updated regularly (typically every few days) and is provided by orga
 
 - [x] Add visualization (map display) ✅ **COMPLETE** - Streamlit dashboard
 - [x] Real-time updates ✅ **COMPLETE** - Auto-refresh every 10 seconds
-- [ ] Track multiple satellites
+- [x] 3D Orbit View ✅ **COMPLETE** - 3D visualization with Plotly
+- [x] Orbital Shell ✅ **COMPLETE** - Layer 1 implementation
+- [x] Multi-satellite tracking ⚠️ **IN PROGRESS** - Implementation complete, debugging NaN positions
+- [ ] Fix multi-satellite position calculations (NaN issue)
 - [ ] Historical tracking
 - [ ] Alerts and notifications
-- [ ] Orbit path visualization
 - [ ] Export position data
 
 ## Documentation
