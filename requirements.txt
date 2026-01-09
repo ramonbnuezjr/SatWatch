@@ -16,3 +16,6 @@ streamlit>=1.28.0
 # Folium: Interactive maps for Streamlit
 folium>=0.14.0
 streamlit-folium>=0.15.0
+
+# Plotly: 3D visualizations
+plotly>=5.17.0
