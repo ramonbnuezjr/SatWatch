@@ -45,6 +45,16 @@ This document tracks what's working well, challenges we've faced, and solutions 
 - Displays formatted output as expected
 - All dependencies install correctly
 
+### 7. **Streamlit Dashboard** ✅ **NEW**
+- Interactive web dashboard with real-time ISS tracking
+- World map visualization using Folium
+- Auto-refresh every 10 seconds
+- Dark theme interface
+- Sidebar with position data and TLE status
+- Data source selection (local file or API)
+- Fixed flickering issues for smooth map updates
+- Successfully tested and working
+
 ---
 
 ## 🚧 Challenges We Faced
@@ -74,6 +84,33 @@ This document tracks what's working well, challenges we've faced, and solutions 
 - Always check library requirements before assuming data format
 - TLE format is the industry standard for a reason - it's optimized for SGP4
 - Having both formats in JSON gives best of both worlds
+
+---
+
+### Challenge 4: Dashboard Map Flickering
+
+**Problem**:
+- Streamlit dashboard map was flickering every 0.5 seconds
+- Map was being recreated on every script rerun
+- Poor user experience with constant visual disruption
+
+**Root Cause**:
+- Streamlit reruns the entire script on every refresh
+- Map was being recreated with dynamic keys based on position
+- No caching or stable key mechanism
+- Refresh logic was triggering too frequently
+
+**Solution**:
+1. Changed map key to fixed value (`"iss_tracker_map"`) instead of dynamic
+2. Improved refresh timing logic with better session state management
+3. Added delay before rerun to prevent rapid loops
+4. Map now only updates when position actually changes significantly
+
+**Lesson Learned**:
+- Use stable keys for Streamlit components that shouldn't be recreated
+- Session state management is crucial for auto-refresh features
+- Small delays can prevent rapid rerun loops
+- Fixed keys prevent unnecessary component recreation
 
 ---
 
@@ -147,6 +184,34 @@ This document tracks what's working well, challenges we've faced, and solutions 
 
 ---
 
+### Challenge 5: Dashboard Map Flickering
+
+**Problem**:
+- Streamlit dashboard map was flickering every 0.5 seconds
+- Map was being recreated on every script rerun
+- Poor user experience with constant visual disruption
+- Made the dashboard difficult to use
+
+**Root Cause**:
+- Streamlit reruns the entire script on every refresh
+- Map was being recreated with dynamic keys based on position
+- No caching or stable key mechanism
+- Refresh logic was triggering too frequently
+
+**Solution**:
+1. Changed map key to fixed value (`"iss_tracker_map"`) instead of dynamic
+2. Improved refresh timing logic with better session state management
+3. Added delay before rerun to prevent rapid loops
+4. Map now only updates when position actually changes significantly
+
+**Lesson Learned**:
+- Use stable keys for Streamlit components that shouldn't be recreated
+- Session state management is crucial for auto-refresh features
+- Small delays can prevent rapid rerun loops
+- Fixed keys prevent unnecessary component recreation
+
+---
+
 ## 📊 Current Implementation Status
 
 ### Working Features ✅
@@ -190,14 +255,20 @@ This document tracks what's working well, challenges we've faced, and solutions 
    - Downloads TLE data every run
    - No local caching mechanism yet
 
-4. **No Real-time Updates**
-   - Calculates position at time of execution
-   - No continuous tracking yet
+4. **Dashboard Refresh Rate**
+   - Auto-refreshes every 10 seconds (configurable)
+   - Not true real-time (sub-second updates)
+   - Suitable for ISS tracking (orbital period ~92 minutes)
 
 5. **OpenSSL Warning (Minor)**
    - urllib3 may show a warning about OpenSSL/LibreSSL compatibility
    - This is harmless and doesn't affect functionality
    - Can be safely ignored
+
+6. **Map Flickering (Resolved)**
+   - Initial version had map flickering issue
+   - **Fixed** by using stable map keys and improved refresh logic
+   - Map now updates smoothly without flickering
 
 ---
 
@@ -224,6 +295,13 @@ This document tracks what's working well, challenges we've faced, and solutions 
    - Document challenges and solutions
    - Keep documentation updated with code
 
+### 5. **Streamlit Dashboard Development**
+   - Use stable keys for components that shouldn't be recreated
+   - Manage session state carefully for auto-refresh
+   - Add small delays to prevent rapid rerun loops
+   - Test for flickering and visual stability
+   - Use fixed keys for maps and visualizations
+
 ---
 
 ## 🔄 Next Steps
@@ -232,13 +310,17 @@ This document tracks what's working well, challenges we've faced, and solutions 
 - [ ] Add TLE data caching (avoid repeated downloads)
 - [ ] Improve TLE construction accuracy
 - [ ] Add more validation for orbital element ranges
+- [ ] Dashboard: Add orbit path visualization
+- [ ] Dashboard: Add historical position trail
 
 ### Future Enhancements
 - [ ] Multi-satellite tracking
-- [ ] Real-time position updates
 - [ ] Historical position tracking
-- [ ] Visualization (map display)
 - [ ] API endpoint for position queries
+- [ ] Dashboard: Export position data
+- [ ] Dashboard: Customizable refresh intervals
+- [ ] Dashboard: Multiple map view options
+- [ ] Alerts and notifications
 
 ---
 
@@ -250,10 +332,12 @@ This document tracks what's working well, challenges we've faced, and solutions 
 4. **Clear Errors Help**: Good error messages save time debugging
 5. **Documentation Matters**: Explain challenges and solutions, not just features
 6. **Testing Confirms Success**: Scripts have been tested and verified working correctly
+7. **Dashboard Stability**: Use stable keys and proper session state management for smooth UI
+8. **User Experience**: Fix visual issues (like flickering) promptly for better UX
 
 ## ✅ Verification Results
 
-**Test Date**: January 2025
+### Command-Line Scripts (January 2025)
 
 **Test Command**: `python src/iss_tracker_json.py --local`
 
@@ -271,6 +355,28 @@ This document tracks what's working well, challenges we've faced, and solutions 
 - Coordinate format: Degrees with proper precision
 - Altitude: Kilometers with 2 decimal places
 - Box formatting: Clean, readable display
+
+### Streamlit Dashboard (January 2025)
+
+**Test Command**: `streamlit run src/dashboard.py`
+
+**Results**:
+- ✅ Dashboard starts successfully on port 8501
+- ✅ Map displays correctly with ISS position
+- ✅ Auto-refresh works (every 10 seconds)
+- ✅ Sidebar displays all required information
+- ✅ Data source switching works (local file / API)
+- ✅ Dark theme renders correctly
+- ✅ Map flickering issue resolved
+- ✅ Position updates smoothly without map recreation
+
+**Dashboard Features Verified**:
+- Interactive map: Working with Folium
+- ISS marker: Red dot displays correctly
+- Position data: Latitude, longitude, altitude accurate
+- TLE status: Freshness indicator works
+- Auto-refresh: Updates every 10 seconds as designed
+- UI stability: No flickering, smooth updates
 
 ---
 

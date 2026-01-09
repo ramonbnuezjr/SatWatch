@@ -21,7 +21,24 @@ This installs:
 
 ## Step 2: Choose Your Method
 
-### Method A: Use Local JSON File (Recommended for Testing)
+### Method A: Interactive Web Dashboard (Recommended) 🆕
+
+1. **Run the dashboard**:
+   ```bash
+   streamlit run src/dashboard.py
+   ```
+
+2. **Open in browser**: The dashboard will open at `http://localhost:8501`
+
+3. **Features**:
+   - Interactive world map with ISS position
+   - Real-time updates every 10 seconds
+   - Sidebar with position data
+   - Dark theme interface
+
+See [DASHBOARD_README.md](DASHBOARD_README.md) for detailed dashboard documentation.
+
+### Method C: Use Local JSON File (Command Line)
 
 1. **Ensure you have a JSON file**:
    ```bash
@@ -39,7 +56,7 @@ This installs:
    python src/iss_tracker_json.py --local
    ```
 
-### Method B: Download from CelesTrak (JSON Format)
+### Method D: Download from CelesTrak (JSON Format)
 
 ```bash
 python src/iss_tracker_json.py
@@ -50,7 +67,7 @@ This will:
 - Calculate current ISS position
 - Display results
 
-### Method C: Download from CelesTrak (Text Format)
+### Method E: Download from CelesTrak (Text Format)
 
 ```bash
 python src/iss_tracker.py

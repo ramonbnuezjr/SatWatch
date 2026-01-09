@@ -6,11 +6,19 @@ SatWatch is a satellite traffic monitoring system that tracks satellites in real
 
 ## Current Architecture
 
-### Phase 1: Basic ISS Tracking (Current)
-- Single script: `src/iss_tracker.py`
+### Phase 1: Basic ISS Tracking ✅ **COMPLETE**
+- Script: `src/iss_tracker.py` (text format)
+- Script: `src/iss_tracker_json.py` (JSON format)
 - Downloads TLE from CelesTrak
 - Calculates position using Skyfield
 - Prints formatted output
+
+### Phase 2: Web Dashboard ✅ **COMPLETE**
+- Dashboard: `src/dashboard.py` (Streamlit)
+- Interactive world map with ISS position
+- Auto-refresh every 10 seconds
+- Dark theme interface
+- Real-time position tracking
 
 ## Future Module Structure
 
@@ -24,7 +32,9 @@ satwatch/
 │   │   ├── position_calculator.py  # Position calculations
 │   │   ├── satellite.py        # Satellite data models
 │   │   └── utils.py            # Helper functions
-│   └── iss_tracker.py          # Entry point (current)
+│   ├── iss_tracker.py          # ISS tracker (text format)
+│   ├── iss_tracker_json.py    # ISS tracker (JSON format)
+│   └── dashboard.py            # Streamlit dashboard
 ├── tests/
 │   ├── test_tracker.py
 │   ├── test_tle_downloader.py
@@ -79,19 +89,25 @@ Display/Export
 ## Future Enhancements
 
 1. **Multi-satellite tracking**: Track multiple satellites simultaneously
-2. **Visualization**: Map display showing satellite positions
-3. **Real-time updates**: Continuous position updates
+2. ~~**Visualization**: Map display showing satellite positions~~ ✅ **COMPLETE** - Streamlit dashboard
+3. ~~**Real-time updates**: Continuous position updates~~ ✅ **COMPLETE** - Auto-refresh every 10 seconds
 4. **Database**: Store historical positions
 5. **API**: REST API for accessing satellite data
 6. **Alerts**: Notifications for satellite events
-7. **Web dashboard**: Browser-based interface
+7. ~~**Web dashboard**: Browser-based interface~~ ✅ **COMPLETE** - Streamlit dashboard
+8. **Orbit path visualization**: Show ISS orbit trail on map
+9. **Historical tracking**: Display position history
+10. **Export functionality**: Export position data to CSV/JSON
 
 ## Dependencies
 
 - **skyfield**: Astronomical calculations
 - **requests**: HTTP requests
 - **numpy**: Numerical computations (Skyfield dependency)
-- **Future**: matplotlib, folium (for visualization)
+- **streamlit**: Web dashboard framework ✅ **ADDED**
+- **folium**: Interactive maps ✅ **ADDED**
+- **streamlit-folium**: Folium integration for Streamlit ✅ **ADDED**
+- **Future**: matplotlib (for additional visualizations)
 
 ## Configuration
 

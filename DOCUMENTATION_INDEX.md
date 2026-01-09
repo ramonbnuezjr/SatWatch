@@ -23,12 +23,26 @@ This document provides an overview of all documentation files in the SatWatch pr
 **Audience:** Users who want to run the script immediately  
 **Contents:**
 - Step-by-step installation
-- Three different methods to run the script
+- Multiple methods to run (dashboard, command line, API)
 - Example output
 - Common troubleshooting
 - Quick reference
 
 **When to read:** First time using the project, or when you need a quick reminder.
+
+---
+
+### DASHBOARD_README.md
+**Purpose:** Streamlit dashboard documentation  
+**Audience:** Users wanting to use the web dashboard  
+**Contents:**
+- Dashboard features and capabilities
+- Installation and running instructions
+- Component descriptions
+- Troubleshooting
+- Customization options
+
+**When to read:** When you want to use the interactive web dashboard.
 
 ---
 
@@ -142,6 +156,9 @@ Located in `.cursor/rules/`, these files guide AI-assisted code generation:
 - skyfield (astronomical calculations)
 - requests (HTTP requests)
 - numpy (numerical computations)
+- streamlit (web dashboard framework) ✅ **NEW**
+- folium (interactive maps) ✅ **NEW**
+- streamlit-folium (Folium integration) ✅ **NEW**
 
 **Usage:** `pip install -r requirements.txt`
 
@@ -171,8 +188,9 @@ When making code changes:
 
 **New to the project?**
 1. Read `README.md`
-2. Run the script: `python src/iss_tracker.py`
-3. Read `CODE_EXPLANATION.md` to understand how it works
+2. Try the dashboard: `streamlit run src/dashboard.py` (recommended)
+3. Or run the script: `python src/iss_tracker_json.py --local`
+4. Read `CODE_EXPLANATION.md` to understand how it works
 
 **Writing code?**
 1. Check `.cursor/rules/code-style.mdc` for conventions
@@ -189,3 +207,4 @@ When making code changes:
 ## Version History
 
 - **v1.0** (Initial) - Basic ISS tracking with comprehensive documentation
+- **v1.1** (January 2025) - Added Streamlit dashboard with interactive map visualization

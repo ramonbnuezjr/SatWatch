@@ -10,3 +10,9 @@ requests>=2.31.0
 # NumPy: Numerical computations (required by Skyfield)
 numpy>=1.24.0
 
+# Streamlit: Web dashboard framework
+streamlit>=1.28.0
+
+# Folium: Interactive maps for Streamlit
+folium>=0.14.0
+streamlit-folium>=0.15.0
