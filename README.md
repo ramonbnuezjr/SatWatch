@@ -98,6 +98,8 @@ python src/iss_tracker_json.py --local
 streamlit run src/dashboard.py
 ```
 
+**Note**: If you get "Connection failed" or "Site can't be reached", the Streamlit server may not be running. Check if it's running with `ps aux | grep streamlit` and restart if needed. See [DASHBOARD_README.md](DASHBOARD_README.md) for troubleshooting.
+
 The dashboard provides:
 - Interactive world map with ISS position (2D Map View)
 - 3D orbit visualization showing Earth, ISS position, and orbit path (3D Orbit View)

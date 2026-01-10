@@ -80,6 +80,65 @@ The dashboard automatically refreshes every 10 seconds to show the latest ISS po
 - Ensure all dependencies are installed: `pip install -r requirements.txt`
 - Check that `data/iss_tle.json` exists if using local file mode
 
+### Connection Failed / Site Can't Be Reached
+
+**Symptoms**: 
+- Browser shows "Connection failed" or "Site can't be reached"
+- Error when trying to access `http://localhost:8501`
+
+**Root Cause**: 
+The Streamlit server process is not running. This can happen if:
+- The terminal window that started Streamlit was closed
+- The process crashed or was terminated
+- The system was restarted
+- The process was killed by another process
+
+**Solution - Check if Server is Running**:
+
+1. **Check if Streamlit process is running**:
+   ```bash
+   ps aux | grep -i streamlit | grep -v grep
+   ```
+   - If no output, the server is not running
+
+2. **Check if port 8501 is in use**:
+   ```bash
+   lsof -i :8501
+   ```
+   - If no output, nothing is listening on port 8501
+
+3. **Restart the Streamlit server**:
+   ```bash
+   cd "/Users/ramonbnuezjr/AI Projects/satwatch"
+   streamlit run src/dashboard.py
+   ```
+   
+   Or for persistent background execution:
+   ```bash
+   cd "/Users/ramonbnuezjr/AI Projects/satwatch"
+   nohup python3 -m streamlit run src/dashboard.py --server.port 8501 --server.address 0.0.0.0 > /tmp/streamlit.log 2>&1 &
+   ```
+
+4. **Verify server is running**:
+   ```bash
+   curl http://localhost:8501
+   ```
+   - Should return HTML (HTTP 200 status)
+
+5. **Check server logs** (if using background mode):
+   ```bash
+   tail -f /tmp/streamlit.log
+   ```
+
+**Alternative URLs to Try**:
+- `http://localhost:8501`
+- `http://127.0.0.1:8501`
+
+**Prevention**:
+- Keep the terminal window open when running Streamlit in foreground mode
+- Use `nohup` or a process manager for background execution
+- Consider setting up a system service for automatic startup
+
 ### Map not displaying
 - Check browser console for errors
 - Ensure internet connection for map tiles (if using API mode)

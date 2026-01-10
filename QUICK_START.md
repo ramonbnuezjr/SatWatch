@@ -103,6 +103,34 @@ Calculating current ISS position...
 
 ## Troubleshooting
 
+### Issue: "Connection Failed" or "Site Can't Be Reached" (Dashboard)
+
+**Symptoms**: Browser shows connection error when trying to access `http://localhost:8501`
+
+**Solution**: The Streamlit server is not running. Restart it:
+
+```bash
+# Check if server is running
+ps aux | grep -i streamlit | grep -v grep
+
+# If not running, start it:
+cd "/Users/ramonbnuezjr/AI Projects/satwatch"
+streamlit run src/dashboard.py
+```
+
+**For persistent background execution**:
+```bash
+cd "/Users/ramonbnuezjr/AI Projects/satwatch"
+nohup python3 -m streamlit run src/dashboard.py --server.port 8501 --server.address 0.0.0.0 > /tmp/streamlit.log 2>&1 &
+```
+
+**Verify it's working**:
+```bash
+curl http://localhost:8501
+```
+
+See [DASHBOARD_README.md](DASHBOARD_README.md) for detailed troubleshooting.
+
 ### Issue: "ModuleNotFoundError: No module named 'requests'"
 
 **Solution**: Install dependencies:

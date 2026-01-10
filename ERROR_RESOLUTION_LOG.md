@@ -16,6 +16,7 @@ This document provides a detailed log of all errors encountered during the multi
 | 3 | NaN Position Calculations | ✅ Resolved | Changed API format from JSON to 3LE format |
 | 4 | Variable Scope Error | ✅ Resolved | Fixed variable scope in debug section |
 | 5 | Satellites Not Showing | ✅ Resolved | Fixed by resolving Issue 3 (3LE format provides TLE lines) |
+| 6 | Streamlit Server Connection Failed | ✅ Resolved | Documented troubleshooting steps, restart procedures |
 
 ---
 
@@ -274,6 +275,66 @@ Showing 0 of 3 tracked objects (within 5000 km of ISS)
 
 ---
 
+### Error 6: Streamlit Server Connection Failed
+
+**Error Message**:
+```
+Connection failed
+Site can't be reached
+```
+
+**When It Occurred**: When trying to access the dashboard at `http://localhost:8501`
+
+**Root Cause**:
+- The Streamlit server process was not running
+- This can happen when:
+  - The terminal window that started Streamlit was closed
+  - The process crashed or was terminated
+  - The system was restarted
+  - The background process failed to start properly
+
+**Resolution**:
+
+1. **Check if server is running**:
+   ```bash
+   ps aux | grep -i streamlit | grep -v grep
+   lsof -i :8501
+   ```
+   - If no output, the server is not running
+
+2. **Restart the Streamlit server**:
+   ```bash
+   cd "/Users/ramonbnuezjr/AI Projects/satwatch"
+   streamlit run src/dashboard.py
+   ```
+   
+   Or for persistent background execution:
+   ```bash
+   cd "/Users/ramonbnuezjr/AI Projects/satwatch"
+   nohup python3 -m streamlit run src/dashboard.py --server.port 8501 --server.address 0.0.0.0 > /tmp/streamlit.log 2>&1 &
+   ```
+
+3. **Verify server is accessible**:
+   ```bash
+   curl http://localhost:8501
+   ```
+   - Should return HTML (HTTP 200 status)
+
+4. **Check server logs** (if using background mode):
+   ```bash
+   tail -f /tmp/streamlit.log
+   ```
+
+**Current Status**: ✅ **Resolved**
+- Documented troubleshooting steps in DASHBOARD_README.md
+- Added connection issue section to QUICK_START.md
+- Updated main README.md with server status check note
+- Users can now diagnose and fix connection issues independently
+
+**Key Lesson**: Always check if the server process is running before troubleshooting connection issues. Background processes may not persist after terminal closes.
+
+---
+
 ## Lessons Learned
 
 1. **Always validate catalog numbers** before using them - some may not exist in database
@@ -282,6 +343,8 @@ Showing 0 of 3 tracked objects (within 5000 km of ISS)
 4. **Data format consistency matters** - Ensure TLE data format is consistent across all sources
 5. **Error handling is critical** - Comprehensive error handling prevents crashes and provides useful feedback
 6. **Variable scope matters** - Be careful when accessing variables across function boundaries
+7. **Check server status first** - When troubleshooting connection issues, always verify the server process is running before investigating other causes
+8. **Background processes need persistence** - Use `nohup` or process managers for long-running background services
 
 ---
 

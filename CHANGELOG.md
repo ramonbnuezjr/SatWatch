@@ -229,6 +229,63 @@ This document tracks significant changes, improvements, and lessons learned duri
 
 ---
 
+## 2025-01 - Streamlit Server Connection Issue
+
+### 🐛 Issue: Dashboard Connection Failures
+
+**Date**: January 2025  
+**Issue**: Users experiencing "Connection failed" or "Site can't be reached" errors when accessing the dashboard
+
+**Root Cause**: 
+The Streamlit server process was not running. This can occur when:
+- The terminal window that started Streamlit was closed
+- The process crashed or was terminated
+- The system was restarted
+- The background process failed to start properly
+
+**Symptoms**:
+- Browser shows "Connection failed" or "Site can't be reached"
+- Error accessing `http://localhost:8501`
+- No Streamlit process found when checking with `ps aux | grep streamlit`
+- Port 8501 not in use when checking with `lsof -i :8501`
+
+**Resolution**:
+1. **Check if server is running**:
+   ```bash
+   ps aux | grep -i streamlit | grep -v grep
+   lsof -i :8501
+   ```
+
+2. **Restart the server**:
+   ```bash
+   streamlit run src/dashboard.py
+   ```
+   
+   Or for persistent background execution:
+   ```bash
+   nohup python3 -m streamlit run src/dashboard.py --server.port 8501 --server.address 0.0.0.0 > /tmp/streamlit.log 2>&1 &
+   ```
+
+3. **Verify server is accessible**:
+   ```bash
+   curl http://localhost:8501
+   ```
+
+**Documentation Updates**:
+- Added comprehensive troubleshooting section to `DASHBOARD_README.md`
+- Added connection issue troubleshooting to `QUICK_START.md`
+- Added note to main `README.md` about checking server status
+- Updated `ERROR_RESOLUTION_LOG.md` with this issue
+
+**Prevention**:
+- Use `nohup` for background execution to persist after terminal closes
+- Consider process managers (screen, tmux) for long-running sessions
+- Document server status checking procedures
+
+**Status**: ✅ Resolved - Documentation updated with troubleshooting steps
+
+---
+
 ## Format
 
 Each entry includes:
