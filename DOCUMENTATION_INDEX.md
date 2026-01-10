@@ -46,6 +46,22 @@ This document provides an overview of all documentation files in the SatWatch pr
 
 ---
 
+### ARCHITECTURE.md
+**Purpose:** System architecture, design philosophy, and technical decisions  
+**Audience:** Developers, contributors, and technical stakeholders  
+**Contents:**
+- Design philosophy (deterministic vs AI/ML)
+- System components and data flow
+- Core libraries and technologies
+- Design decisions and rationale
+- Scalability considerations
+- Security considerations
+- Testing strategy
+
+**When to read:** When you want to understand why SatWatch is built the way it is, or when contributing to the codebase.
+
+---
+
 ### CODE_EXPLANATION.md
 **Purpose:** Detailed line-by-line code explanation  
 **Audience:** Beginners learning Python and satellite tracking  
@@ -118,6 +134,12 @@ This document provides an overview of all documentation files in the SatWatch pr
 - Version history
 
 **When to read:** To see what's changed recently or track project evolution.
+
+---
+
+### ARCHITECTURE.md
+**Purpose:** System architecture and design philosophy  
+**See:** ARCHITECTURE.md section above for details
 
 ---
 

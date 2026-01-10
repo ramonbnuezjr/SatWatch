@@ -4,7 +4,9 @@ A Python project for tracking satellites in real-time, starting with the Interna
 
 ## Project Status
 
-**Current Phase**: Step 1 - Basic ISS Tracking ✅ **COMPLETE** | Step 2 - Dashboard ✅ **COMPLETE** | Step 3 - Multi-Satellite Tracking ⚠️ **IN PROGRESS**
+**Current Phase**: Step 1 - Basic ISS Tracking ✅ **COMPLETE** | Step 2 - Dashboard ✅ **COMPLETE** | Step 3 - Multi-Satellite Tracking ✅ **COMPLETE**
+
+**Design Philosophy**: SatWatch uses deterministic physics (SGP4 propagation) for position calculations, not AI/ML. This ensures predictable, repeatable results for safety-critical satellite tracking. See [ARCHITECTURE.md](ARCHITECTURE.md) for details.
 
 ### What's Working ✅
 - ✅ ISS position tracking from CelesTrak (text format)
@@ -214,6 +216,7 @@ This project includes comprehensive documentation:
 - **README.md** (this file) - Project overview and quick start guide
 - **QUICK_START.md** - Fast setup guide with examples
 - **DASHBOARD_README.md** - Streamlit dashboard guide and features
+- **ARCHITECTURE.md** - System design, architecture, and design philosophy
 - **PROJECT_STATUS.md** - Current status, what's working, challenges faced
 - **CODE_EXPLANATION.md** - Line-by-line explanation of the ISS tracker code
 - **JSON_APPROACH_EXPLANATION.md** - Using JSON format with TLE data
