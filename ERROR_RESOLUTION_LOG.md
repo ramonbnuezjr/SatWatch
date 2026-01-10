@@ -17,6 +17,9 @@ This document provides a detailed log of all errors encountered during the multi
 | 4 | Variable Scope Error | ✅ Resolved | Fixed variable scope in debug section |
 | 5 | Satellites Not Showing | ✅ Resolved | Fixed by resolving Issue 3 (3LE format provides TLE lines) |
 | 6 | Streamlit Server Connection Failed | ✅ Resolved | Documented troubleshooting steps, restart procedures |
+| 7 | NaN Values Causing Map Crash | ✅ Resolved | Added NaN validation before map/plot creation, error messages |
+| 8 | Indentation Errors in Dashboard | ✅ Resolved | Fixed indentation in debug expander and else blocks |
+| 9 | Missing TLE Lines in Local File | ✅ Resolved | Updated local file with 3LE format data, added TLE lines to JSON |
 
 ---
 
@@ -127,10 +130,11 @@ Altitude: nan km
 Distance from ISS: nan km
 ```
 
-**When It Occurred**: When calculating positions for tracked satellites
+**When It Occurred**: When calculating positions for tracked satellites, and later when using local TLE file
 
 **Root Cause**:
 - **Primary Issue**: CelesTrak JSON API response (`FORMAT=json`) does not include `TLE_LINE1` and `TLE_LINE2` fields
+- **Secondary Issue**: Local TLE file (`data/iss_tle.json`) was missing TLE lines after updating via JSON API
 - Skyfield requires TLE lines (not just orbital elements) to calculate positions
 - Without TLE lines, position calculations fail, resulting in NaN values
 - The JSON format only includes individual orbital elements, not the formatted TLE lines
@@ -186,13 +190,24 @@ Distance from ISS: nan km
    ```
    - **Result**: ✅ **RESOLVED** - 3LE format includes TLE lines directly
 
+**Additional Resolution (January 2025)**:
+- **Issue**: Local TLE file was updated using JSON format, which removed TLE_LINE1 and TLE_LINE2
+- **Fix**: Created script to download 3LE format and merge TLE lines into local JSON file
+- **Result**: Local file now contains both orbital elements AND TLE lines
+- **Verification**: Position calculation tested and confirmed working with valid (non-NaN) values
+
 **Current Status**: ✅ **Resolved**
 - Root cause identified: JSON format doesn't include TLE lines
 - Solution implemented: Changed to 3LE format which includes TLE lines
+- Local file fixed: TLE lines now properly included in local JSON file
 - Tested with ISS (25544): Successfully fetches and parses TLE lines
-- Position calculations now work correctly
+- Position calculations now work correctly with both API and local file
 
-**Key Lesson**: CelesTrak's JSON format (`FORMAT=json`) provides orbital elements but not formatted TLE lines. The 3LE format (`FORMAT=3le`) provides TLE lines directly, which is what Skyfield needs.
+**Key Lesson**: 
+1. CelesTrak's JSON format (`FORMAT=json`) provides orbital elements but not formatted TLE lines
+2. The 3LE format (`FORMAT=3le`) provides TLE lines directly, which is what Skyfield needs
+3. When updating local TLE files, always ensure TLE_LINE1 and TLE_LINE2 are included
+4. Always verify position calculation returns valid (non-NaN) values after updating TLE data
 
 ---
 
@@ -369,6 +384,179 @@ Site can't be reached
 - [PROJECT_STATUS.md](PROJECT_STATUS.md) - Detailed status and challenges
 - [CHANGELOG.md](CHANGELOG.md) - Change history and updates
 - [README.md](README.md) - Project overview
+
+---
+
+---
+
+### Error 7: NaN Values Causing Map Crash
+
+**Error Message**:
+```
+ValueError: Location values cannot contain NaNs.
+Traceback:
+File ".../dashboard.py", line 1270, in <module>
+    map_obj = create_map(
+File ".../dashboard.py", line 445, in create_map
+    m = folium.Map(
+File ".../folium/folium.py", line 300, in __init__
+    self.location = validate_location(location)
+File ".../folium/utilities.py", line 110, in validate_location
+    raise ValueError("Location values cannot contain NaNs.")
+```
+
+**When It Occurred**: After updating TLE data freshness warning system
+
+**Root Cause**:
+- Position calculation was returning NaN values (latitude, longitude, or altitude)
+- Folium map creation requires valid numeric values, cannot accept NaN
+- NaN values can occur when:
+  - TLE data is invalid or corrupted
+  - TLE data is too old or expired
+  - Position calculation fails due to invalid orbital elements
+  - Error in Skyfield position calculation
+
+**Resolution Attempts**:
+
+1. **Attempt 1**: Added NaN validation in `create_map()` function
+   ```python
+   if math.isnan(latitude) or math.isnan(longitude) or math.isnan(altitude):
+       raise ValueError(f"Invalid position values: latitude={latitude}, ...")
+   ```
+   - **Result**: ✅ Prevents crash, but doesn't handle gracefully in UI
+
+2. **Attempt 2**: Added validation before creating map in main code
+   ```python
+   if (math.isnan(position['latitude']) or 
+       math.isnan(position['longitude']) or 
+       math.isnan(position['altitude'])):
+       st.error("Position Calculation Failed...")
+   ```
+   - **Result**: ✅ Shows helpful error message instead of crashing
+
+3. **Attempt 3**: Added same validation for 3D plot view
+   - Validates position before creating 3D visualization
+   - Shows error message with troubleshooting steps
+   - **Result**: ✅ Both 2D and 3D views handle NaN gracefully
+
+**Current Status**: ✅ **Resolved**
+- Added NaN validation in `create_map()` function
+- Added validation before creating both 2D map and 3D plot
+- Clear error messages guide users to:
+  - Switch to CelesTrak API data source
+  - Refresh the page
+  - Check TLE data validity
+- Dashboard no longer crashes when position calculation fails
+
+**Key Lesson**: Always validate data before passing to external libraries (like Folium) that may not handle NaN values gracefully.
+
+---
+
+### Error 8: Indentation Errors in Dashboard
+
+**Error Message**:
+```
+IndentationError: expected an indented block
+File ".../dashboard.py", line 1371
+    with st.expander("🔍 Debug Information...", expanded=True):
+    ^
+```
+
+**When It Occurred**: After adding NaN validation and fixing code structure
+
+**Root Cause**:
+- Incorrect indentation when adding new code blocks
+- Missing indentation for code inside `with st.expander` block
+- Missing indentation for `else` block handling no tracked satellites
+- Python requires consistent indentation - mixing tabs/spaces or incorrect levels causes errors
+
+**Resolution Attempts**:
+
+1. **Attempt 1**: Fixed indentation for `with st.expander` block
+   - Added proper indentation (4 spaces) for all code inside expander
+   - **Result**: ✅ Fixed first indentation error
+
+2. **Attempt 2**: Fixed indentation for `else` block
+   - Corrected indentation for else block handling orbital shell view
+   - Ensured all code inside else block properly indented
+   - **Result**: ✅ Fixed second indentation error
+
+3. **Attempt 3**: Verified all code structure
+   - Checked indentation consistency throughout affected sections
+   - Used linter to verify no syntax errors
+   - **Result**: ✅ All indentation errors resolved
+
+**Current Status**: ✅ **Resolved**
+- Fixed indentation for debug expander block
+- Fixed indentation for else block (orbital shell view)
+- All code properly indented and validated
+- Dashboard loads without syntax errors
+
+**Key Lesson**: Always verify indentation when adding nested code blocks, especially when modifying existing code structure. Use linters to catch indentation errors early.
+
+---
+
+### Error 9: Missing TLE Lines in Local File
+
+**Error Message**:
+```
+Position: (nan, nan, nan) km
+ValueError: Location values cannot contain NaNs.
+```
+
+**When It Occurred**: After updating local TLE file using JSON format download
+
+**Root Cause**:
+- Local TLE file (`data/iss_tle.json`) was updated using `download_iss_tle_json()` function
+- This function uses CelesTrak's JSON API (`FORMAT=json`) which provides orbital elements but NOT TLE lines
+- The JSON format includes fields like `MEAN_MOTION`, `ECCENTRICITY`, `INCLINATION`, etc., but not `TLE_LINE1` and `TLE_LINE2`
+- Skyfield requires TLE lines (formatted strings) to calculate positions, not just orbital elements
+- Without TLE lines, position calculations return NaN values, causing dashboard to crash
+
+**Diagnosis**:
+1. **Tested CelesTrak API directly**: `curl "https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=3le"` - ✅ Working, returns valid 3LE format
+2. **Checked local file**: `cat data/iss_tle.json` - ❌ Missing `TLE_LINE1` and `TLE_LINE2` fields
+3. **Root cause identified**: File was updated using JSON format which doesn't include TLE lines
+
+**Resolution**:
+
+1. **Downloaded 3LE format data**:
+   ```python
+   url = 'https://celestrak.org/NORAD/elements/gp.php'
+   params = {'CATNR': 25544, 'FORMAT': '3le'}
+   response = requests.get(url, params=params)
+   ```
+
+2. **Parsed 3LE format** (three lines: name, TLE line 1, TLE line 2):
+   ```python
+   lines = [line.strip() for line in response.text.strip().split('\n') if line.strip()]
+   name_line = lines[0]
+   tle_line1 = lines[1]
+   tle_line2 = lines[2]
+   ```
+
+3. **Merged TLE lines into existing JSON structure**:
+   - Loaded existing JSON file (preserving orbital elements)
+   - Added `TLE_LINE1` and `TLE_LINE2` fields
+   - Updated `OBJECT_NAME` with fresh data
+   - Saved back to file
+
+4. **Verified fix**:
+   - Position calculation now works correctly
+   - Returns valid (non-NaN) values: Lat: 10.1616°, Lon: -64.2184°, Alt: 413.84 km
+   - Dashboard can now display map and 3D view
+
+**Current Status**: ✅ **Resolved**
+- Local TLE file now contains both orbital elements AND TLE lines
+- Position calculations work correctly with local file
+- Dashboard displays ISS position without NaN errors
+- Both API and local file modes now work properly
+
+**Key Lesson**: 
+- Always ensure TLE files contain `TLE_LINE1` and `TLE_LINE2` fields for Skyfield
+- When updating TLE data, use 3LE format (`FORMAT=3le`) to get TLE lines, not JSON format
+- Verify position calculation returns valid values after updating TLE data
+- Test foundation (data source) before debugging application code
 
 ---
 

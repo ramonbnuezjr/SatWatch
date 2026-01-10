@@ -379,15 +379,25 @@ def create_altitude_bands(earth_radius: float = 6371.0):
     return bands
 
 
-def is_data_fresh(epoch_str: str) -> tuple[bool, float]:
+def get_data_freshness_status(epoch_str: str) -> tuple[str, float, str]:
     """
-    Check if TLE data is fresh (< 12 hours old).
+    Check TLE data freshness and return status level.
+    
+    TLE data is typically valid for ~2 weeks. This function provides
+    graduated warnings as data ages:
+    - < 7 days: Fresh (green)
+    - 7-10 days: Getting old (yellow warning)
+    - 10-14 days: Old (orange warning)
+    - > 14 days: Expired (red error)
     
     Args:
         epoch_str: Epoch string from TLE data
         
     Returns:
-        tuple: (is_fresh, hours_old)
+        tuple: (status_level, hours_old, message)
+            status_level: 'fresh', 'warning', 'old', 'expired'
+            hours_old: Age in hours
+            message: Human-readable status message
     """
     try:
         from datetime import datetime
@@ -400,10 +410,23 @@ def is_data_fresh(epoch_str: str) -> tuple[bool, float]:
         
         time_diff = now - epoch_dt
         hours_old = time_diff.total_seconds() / 3600.0
+        days_old = hours_old / 24.0
         
-        return hours_old < 12, hours_old
+        # Define thresholds (in hours)
+        FRESH_THRESHOLD = 7 * 24  # 7 days
+        WARNING_THRESHOLD = 10 * 24  # 10 days
+        EXPIRED_THRESHOLD = 14 * 24  # 14 days
+        
+        if hours_old < FRESH_THRESHOLD:
+            return 'fresh', hours_old, f"Data Fresh ({days_old:.1f} days old)"
+        elif hours_old < WARNING_THRESHOLD:
+            return 'warning', hours_old, f"Data Getting Old ({days_old:.1f} days old, update in {EXPIRED_THRESHOLD/24 - days_old:.1f} days)"
+        elif hours_old < EXPIRED_THRESHOLD:
+            return 'old', hours_old, f"Data Old ({days_old:.1f} days old, update soon - expires in {EXPIRED_THRESHOLD/24 - days_old:.1f} days)"
+        else:
+            return 'expired', hours_old, f"Data Expired ({days_old:.1f} days old - update required)"
     except:
-        return False, 999
+        return 'expired', 999, "Unable to determine data age"
 
 
 def create_map(latitude: float, longitude: float, altitude: float):
@@ -417,7 +440,17 @@ def create_map(latitude: float, longitude: float, altitude: float):
         
     Returns:
         folium.Map: Map object with ISS marker
+        
+    Raises:
+        ValueError: If latitude, longitude, or altitude contains NaN values
     """
+    # Validate that position values are not NaN
+    if math.isnan(latitude) or math.isnan(longitude) or math.isnan(altitude):
+        raise ValueError(
+            f"Invalid position values: latitude={latitude}, longitude={longitude}, altitude={altitude}. "
+            "Position calculation may have failed. Try refreshing or using CelesTrak API data source."
+        )
+    
     # Create map centered on ISS position
     m = folium.Map(
         location=[latitude, longitude],
@@ -1111,12 +1144,17 @@ with st.sidebar:
         epoch = json_data.get('EPOCH', 'Unknown')
         st.text(f"Epoch: {epoch}")
         
-        # Data freshness
-        is_fresh, hours_old = is_data_fresh(epoch)
-        if is_fresh:
-            st.success(f"✅ Data Fresh ({hours_old:.1f} hours old)")
-        else:
-            st.warning(f"⚠️ Data Old ({hours_old:.1f} hours old)")
+        # Data freshness with graduated warnings
+        status_level, hours_old, status_message = get_data_freshness_status(epoch)
+        
+        if status_level == 'fresh':
+            st.success(f"✅ {status_message}")
+        elif status_level == 'warning':
+            st.warning(f"⚠️ {status_message}")
+        elif status_level == 'old':
+            st.warning(f"⚠️ {status_message}")
+        else:  # expired
+            st.error(f"❌ {status_message}")
         
         st.caption("TLE data is typically valid for ~2 weeks")
         
@@ -1238,206 +1276,244 @@ if position and json_data:
     with tab1:
         st.subheader("🌍 ISS Current Position (2D Map)")
         
-        # Create and display map with a stable, unchanging key to prevent flickering
-        map_obj = create_map(
-            position['latitude'],
-            position['longitude'],
-            position['altitude']
-        )
-        
-        # Use a fixed key so the map doesn't get recreated on every rerun
-        # The map will update its position internally without full recreation
-        map_data = st_folium(
-            map_obj, 
-            width=1200, 
-            height=600, 
-            key="iss_tracker_map",  # Fixed key prevents recreation
-            returned_objects=[]
-        )
-        
-        # Additional info below map
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.info(f"**Last Update:** {position['timestamp']}")
-        with col2:
-            st.info(f"**Speed:** ~7.66 km/s (orbital velocity)")
-        with col3:
-            st.info(f"**Orbit Period:** ~92 minutes")
+        # Validate position values before creating map
+        if (math.isnan(position['latitude']) or 
+            math.isnan(position['longitude']) or 
+            math.isnan(position['altitude'])):
+            st.error(
+                "❌ **Position Calculation Failed**\n\n"
+                "The ISS position could not be calculated. This may be due to:\n"
+                "- Invalid or corrupted TLE data\n"
+                "- TLE data that is too old or expired\n"
+                "- Error in position calculation\n\n"
+                "**Try:**\n"
+                "1. Switch to 'CelesTrak API' data source in the sidebar\n"
+                "2. Refresh the page\n"
+                "3. Check that TLE data is valid"
+            )
+        else:
+            # Create and display map with a stable, unchanging key to prevent flickering
+            try:
+                map_obj = create_map(
+                    position['latitude'],
+                    position['longitude'],
+                    position['altitude']
+                )
+                
+                # Use a fixed key so the map doesn't get recreated on every rerun
+                # The map will update its position internally without full recreation
+                map_data = st_folium(
+                    map_obj, 
+                    width=1200, 
+                    height=600, 
+                    key="iss_tracker_map",  # Fixed key prevents recreation
+                    returned_objects=[]
+                )
+                
+                # Additional info below map
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.info(f"**Last Update:** {position['timestamp']}")
+                with col2:
+                    st.info(f"**Speed:** ~7.66 km/s (orbital velocity)")
+                with col3:
+                    st.info(f"**Orbit Period:** ~92 minutes")
+            except ValueError as e:
+                st.error(f"❌ **Map Creation Failed**: {str(e)}")
+            except Exception as e:
+                st.error(f"❌ **Unexpected Error**: {str(e)}")
+                st.info("Try refreshing the page or switching to CelesTrak API data source.")
     
     with tab2:
         st.subheader("🌐 Multi-Satellite 3D Orbit View")
         
-        # Get satellite object for orbit calculation
-        try:
-            satellite = parse_tle_from_json(json_data)
-            current_time = datetime.now(timezone.utc)
-            
-            # Check if we have tracked satellites to show
-            if tracked_satellites and satellites_tle_data:
-                # Use the new multi-satellite visualization
-                fig_3d, shown_count, total_count = create_3d_tracked_satellites_plot(
-                    position,
-                    satellite,
-                    tracked_satellites,
-                    satellites_tle_data,
-                    current_time,
-                    show_stations=show_stations,
-                    show_satellites=show_satellites,
-                    show_debris=show_debris,
-                    proximity_radius_km=proximity_radius
-                )
+        # Validate position values before creating 3D plot
+        if (math.isnan(position['latitude']) or 
+            math.isnan(position['longitude']) or 
+            math.isnan(position['altitude'])):
+            st.error(
+                "❌ **Position Calculation Failed**\n\n"
+                "The ISS position could not be calculated. This may be due to:\n"
+                "- Invalid or corrupted TLE data\n"
+                "- TLE data that is too old or expired\n"
+                "- Error in position calculation\n\n"
+                "**Try:**\n"
+                "1. Switch to 'CelesTrak API' data source in the sidebar\n"
+                "2. Refresh the page\n"
+                "3. Check that TLE data is valid"
+            )
+        else:
+            # Get satellite object for orbit calculation
+            try:
+                satellite = parse_tle_from_json(json_data)
+                current_time = datetime.now(timezone.utc)
                 
-                # Display count - note: ISS is always shown separately, so count excludes it
-                st.info(f"**Showing {shown_count} of {total_count} tracked objects** (within {proximity_radius} km of ISS)")
-                
-                # Debug information to help diagnose issues
-                if shown_count == 0 and total_count > 1:
-                    with st.expander("🔍 Debug Information - Why are satellites not showing?", expanded=True):
-                        # Calculate positions for debug info
-                        debug_all_sat_positions = calculate_tracked_satellite_positions(
-                            tracked_satellites, 
-                            satellites_tle_data, 
-                            current_time
-                        )
-                        
-                        st.write(f"**Configuration:**")
-                        st.write(f"- Tracked satellites in config: {len(tracked_satellites)}")
-                        st.write(f"- Satellites with TLE data loaded: {len(satellites_tle_data)}")
-                        st.write(f"- Positions successfully calculated: {len(debug_all_sat_positions)}")
-                        st.write(f"- Proximity radius: {proximity_radius} km")
-                        st.write("")
-                        
-                        st.write(f"**Satellite Details:**")
-                        for sat_config in tracked_satellites:
-                            catnr = sat_config['catnr']
-                            name = sat_config['name']
-                            sat_type = sat_config['type']
+                # Check if we have tracked satellites to show
+                if tracked_satellites and satellites_tle_data:
+                    # Use the new multi-satellite visualization
+                    fig_3d, shown_count, total_count = create_3d_tracked_satellites_plot(
+                        position,
+                        satellite,
+                        tracked_satellites,
+                        satellites_tle_data,
+                        current_time,
+                        show_stations=show_stations,
+                        show_satellites=show_satellites,
+                        show_debris=show_debris,
+                        proximity_radius_km=proximity_radius
+                    )
+                    
+                    # Display count - note: ISS is always shown separately, so count excludes it
+                    st.info(f"**Showing {shown_count} of {total_count} tracked objects** (within {proximity_radius} km of ISS)")
+                    
+                    # Debug information to help diagnose issues
+                    if shown_count == 0 and total_count > 1:
+                        with st.expander("🔍 Debug Information - Why are satellites not showing?", expanded=True):
+                            # Calculate positions for debug info
+                            debug_all_sat_positions = calculate_tracked_satellite_positions(
+                                tracked_satellites, 
+                                satellites_tle_data, 
+                                current_time
+                            )
                             
-                            has_tle = catnr in satellites_tle_data
-                            type_enabled = (show_stations and sat_type == 'station') or \
-                                         (show_satellites and sat_type == 'satellite') or \
-                                         (show_debris and sat_type == 'debris')
-                            
-                            st.write(f"**{name}** (CATNR: {catnr}, Type: {sat_type})")
-                            
-                            if not has_tle:
-                                st.error(f"  ✗ No TLE data loaded - satellite fetch may have failed")
-                            elif not type_enabled:
-                                st.warning(f"  ⚠ Type filter disabled - {sat_type} type is not shown")
-                            else:
-                                # Calculate position and distance
-                                try:
-                                    sat_tle = satellites_tle_data[catnr]
-                                    
-                                    # Check if TLE data has required fields
-                                    if 'TLE_LINE1' not in sat_tle or 'TLE_LINE2' not in sat_tle:
-                                        st.error(f"  ✗ Missing TLE_LINE1 or TLE_LINE2 in TLE data")
-                                        st.write(f"  - Available fields: {list(sat_tle.keys())}")
-                                        continue
-                                    
-                                    sat_obj = parse_tle_from_json(sat_tle)
-                                    from skyfield.api import load
-                                    ts = load.timescale()
-                                    skyfield_time = ts.from_datetime(current_time)
-                                    geocentric = sat_obj.at(skyfield_time)
-                                    subpoint = geocentric.subpoint()
-                                    
-                                    lat = subpoint.latitude.degrees
-                                    lon = subpoint.longitude.degrees
-                                    alt = subpoint.elevation.km
-                                    
-                                    # Check for NaN
-                                    if math.isnan(lat) or math.isnan(lon) or math.isnan(alt):
-                                        st.error(f"  ✗ Position calculation returned NaN")
-                                        st.write(f"  - Lat: {lat}, Lon: {lon}, Alt: {alt}")
-                                        st.write(f"  - TLE_LINE1: {sat_tle.get('TLE_LINE1', 'Missing')[:50]}...")
-                                        continue
-                                    
-                                    sat_x, sat_y, sat_z = lat_lon_alt_to_xyz(lat, lon, alt)
-                                    
-                                    # Check for NaN in converted coordinates
-                                    if math.isnan(sat_x) or math.isnan(sat_y) or math.isnan(sat_z):
-                                        st.error(f"  ✗ Coordinate conversion returned NaN")
-                                        continue
-                                    
-                                    # Calculate distance from ISS
-                                    iss_x, iss_y, iss_z = lat_lon_alt_to_xyz(
-                                        position['latitude'],
-                                        position['longitude'],
-                                        position['altitude']
-                                    )
-                                    distance = calculate_distance_3d((iss_x, iss_y, iss_z), (sat_x, sat_y, sat_z))
-                                    
-                                    within_radius = distance <= proximity_radius
-                                    
-                                    st.write(f"  - Position: ({sat_x:.0f}, {sat_y:.0f}, {sat_z:.0f}) km")
-                                    st.write(f"  - Altitude: {alt:.0f} km")
-                                    st.write(f"  - Distance from ISS: **{distance:.0f} km**")
-                                    
-                                    if within_radius:
-                                        st.success(f"  ✓ Within {proximity_radius} km radius - should be visible")
-                                    else:
-                                        st.warning(f"  ⚠ Outside {proximity_radius} km radius (need {distance - proximity_radius:.0f} km more)")
-                                        
-                                except Exception as e:
-                                    st.error(f"  ✗ Error calculating position: {e}")
-                                    import traceback
-                                    st.code(traceback.format_exc())
-                            
+                            st.write(f"**Configuration:**")
+                            st.write(f"- Tracked satellites in config: {len(tracked_satellites)}")
+                            st.write(f"- Satellites with TLE data loaded: {len(satellites_tle_data)}")
+                            st.write(f"- Positions successfully calculated: {len(debug_all_sat_positions)}")
+                            st.write(f"- Proximity radius: {proximity_radius} km")
                             st.write("")
-                
-                # Display the 3D plot
-                st.plotly_chart(fig_3d, use_container_width=True)
-                
-                # Info about 3D view
-                st.info("**3D View Features:**")
-                st.markdown("""
-                - **Earth**: Semi-transparent gray sphere (radius: 6,371 km)
-                - **ISS Position**: Red dot showing current location
-                - **Orbit Path**: Red line showing predicted path for next 90 minutes
-                - **Stations**: Red markers (space stations)
-                - **Satellites**: Blue markers (operational satellites)
-                - **Debris**: Orange markers (space debris)
-                - **Interactive**: Rotate, zoom, and pan to explore the 3D view
-                - **Proximity Filter**: Only objects within the selected radius are shown
-                """)
-            else:
-                # Fall back to orbital shell view if no tracked satellites
-                show_shell = st.session_state.get('show_orbital_shell', False)
-                sat_group = st.session_state.get('satellite_group', 'active')
-                max_sats = st.session_state.get('max_satellites', 500)
-                
-                # Create 3D orbit plot with orbital shell
-                fig_3d = create_3d_orbit_plot(
-                    position, 
-                    satellite, 
-                    current_time,
-                    show_orbital_shell=show_shell,
-                    satellite_group=sat_group,
-                    max_satellites=max_sats
-                )
-                
-                # Display the 3D plot
-                st.plotly_chart(fig_3d, use_container_width=True)
-                
-                # Info about 3D view
-                st.info("**3D View Features:**")
-                features_text = """
-                - **Earth**: Semi-transparent gray sphere (radius: 6,371 km)
-                - **ISS Position**: Red dot showing current location
-                - **Orbit Path**: Red line showing predicted path for next 90 minutes
-                - **Interactive**: Rotate, zoom, and pan to explore the 3D view
-                """
-                if show_shell:
-                    features_text += f"\n- **Orbital Shell**: White dots showing {max_sats} satellites from '{sat_group}' group"
-                st.markdown(features_text)
-                
-                if not tracked_satellites:
-                    st.warning("⚠️ No tracked satellites configured. Add satellites to `satellites.json` to see multi-satellite tracking.")
+                            
+                            st.write(f"**Satellite Details:**")
+                            for sat_config in tracked_satellites:
+                                catnr = sat_config['catnr']
+                                name = sat_config['name']
+                                sat_type = sat_config['type']
+                                
+                                has_tle = catnr in satellites_tle_data
+                                type_enabled = (show_stations and sat_type == 'station') or \
+                                             (show_satellites and sat_type == 'satellite') or \
+                                             (show_debris and sat_type == 'debris')
+                                
+                                st.write(f"**{name}** (CATNR: {catnr}, Type: {sat_type})")
+                                
+                                if not has_tle:
+                                    st.error(f"  ✗ No TLE data loaded - satellite fetch may have failed")
+                                elif not type_enabled:
+                                    st.warning(f"  ⚠ Type filter disabled - {sat_type} type is not shown")
+                                else:
+                                    # Calculate position and distance
+                                    try:
+                                        sat_tle = satellites_tle_data[catnr]
+                                        
+                                        # Check if TLE data has required fields
+                                        if 'TLE_LINE1' not in sat_tle or 'TLE_LINE2' not in sat_tle:
+                                            st.error(f"  ✗ Missing TLE_LINE1 or TLE_LINE2 in TLE data")
+                                            st.write(f"  - Available fields: {list(sat_tle.keys())}")
+                                            continue
+                                        
+                                        sat_obj = parse_tle_from_json(sat_tle)
+                                        from skyfield.api import load
+                                        ts = load.timescale()
+                                        skyfield_time = ts.from_datetime(current_time)
+                                        geocentric = sat_obj.at(skyfield_time)
+                                        subpoint = geocentric.subpoint()
+                                        
+                                        lat = subpoint.latitude.degrees
+                                        lon = subpoint.longitude.degrees
+                                        alt = subpoint.elevation.km
+                                        
+                                        # Check for NaN
+                                        if math.isnan(lat) or math.isnan(lon) or math.isnan(alt):
+                                            st.error(f"  ✗ Position calculation returned NaN")
+                                            st.write(f"  - Lat: {lat}, Lon: {lon}, Alt: {alt}")
+                                            st.write(f"  - TLE_LINE1: {sat_tle.get('TLE_LINE1', 'Missing')[:50]}...")
+                                            continue
+                                        
+                                        sat_x, sat_y, sat_z = lat_lon_alt_to_xyz(lat, lon, alt)
+                                        
+                                        # Check for NaN in converted coordinates
+                                        if math.isnan(sat_x) or math.isnan(sat_y) or math.isnan(sat_z):
+                                            st.error(f"  ✗ Coordinate conversion returned NaN")
+                                            continue
+                                        
+                                        # Calculate distance from ISS
+                                        iss_x, iss_y, iss_z = lat_lon_alt_to_xyz(
+                                            position['latitude'],
+                                            position['longitude'],
+                                            position['altitude']
+                                        )
+                                        distance = calculate_distance_3d((iss_x, iss_y, iss_z), (sat_x, sat_y, sat_z))
+                                        
+                                        within_radius = distance <= proximity_radius
+                                        
+                                        st.write(f"  - Position: ({sat_x:.0f}, {sat_y:.0f}, {sat_z:.0f}) km")
+                                        st.write(f"  - Altitude: {alt:.0f} km")
+                                        st.write(f"  - Distance from ISS: **{distance:.0f} km**")
+                                        
+                                        if within_radius:
+                                            st.success(f"  ✓ Within {proximity_radius} km radius - should be visible")
+                                        else:
+                                            st.warning(f"  ⚠ Outside {proximity_radius} km radius (need {distance - proximity_radius:.0f} km more)")
+                                            
+                                    except Exception as e:
+                                        st.error(f"  ✗ Error calculating position: {e}")
+                                        import traceback
+                                        st.code(traceback.format_exc())
+                                
+                                st.write("")
+                    
+                    # Display the 3D plot
+                    st.plotly_chart(fig_3d, use_container_width=True)
+                    
+                    # Info about 3D view
+                    st.info("**3D View Features:**")
+                    st.markdown("""
+                    - **Earth**: Semi-transparent gray sphere (radius: 6,371 km)
+                    - **ISS Position**: Red dot showing current location
+                    - **Orbit Path**: Red line showing predicted path for next 90 minutes
+                    - **Stations**: Red markers (space stations)
+                    - **Satellites**: Blue markers (operational satellites)
+                    - **Debris**: Orange markers (space debris)
+                    - **Interactive**: Rotate, zoom, and pan to explore the 3D view
+                    - **Proximity Filter**: Only objects within the selected radius are shown
+                    """)
+                else:
+                    # Fall back to orbital shell view if no tracked satellites
+                    show_shell = st.session_state.get('show_orbital_shell', False)
+                    sat_group = st.session_state.get('satellite_group', 'active')
+                    max_sats = st.session_state.get('max_satellites', 500)
+                    
+                    # Create 3D orbit plot with orbital shell
+                    fig_3d = create_3d_orbit_plot(
+                        position, 
+                        satellite, 
+                        current_time,
+                        show_orbital_shell=show_shell,
+                        satellite_group=sat_group,
+                        max_satellites=max_sats
+                    )
+                    
+                    # Display the 3D plot
+                    st.plotly_chart(fig_3d, use_container_width=True)
+                    
+                    # Info about 3D view
+                    st.info("**3D View Features:**")
+                    features_text = """
+                    - **Earth**: Semi-transparent gray sphere (radius: 6,371 km)
+                    - **ISS Position**: Red dot showing current location
+                    - **Orbit Path**: Red line showing predicted path for next 90 minutes
+                    - **Interactive**: Rotate, zoom, and pan to explore the 3D view
+                    """
+                    if show_shell:
+                        features_text += f"\n- **Orbital Shell**: White dots showing {max_sats} satellites from '{sat_group}' group"
+                    st.markdown(features_text)
+                    
+                    if not tracked_satellites:
+                        st.warning("⚠️ No tracked satellites configured. Add satellites to `satellites.json` to see multi-satellite tracking.")
             
-        except Exception as e:
-            st.error(f"Error creating 3D view: {e}")
-            st.info("Make sure you have plotly installed: `pip install plotly`")
+            except Exception as e:
+                st.error(f"Error creating 3D view: {e}")
+                st.info("Make sure you have plotly installed: `pip install plotly`")
     
     # Auto-refresh indicator (below tabs)
     st.markdown("---")

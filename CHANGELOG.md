@@ -286,6 +286,61 @@ The Streamlit server process was not running. This can occur when:
 
 ---
 
+## 2025-01 - Dashboard Error Fixes & TLE Freshness Improvements
+
+### 🐛 Issues Fixed
+
+1. **Missing TLE Lines in Local File (Root Cause of NaN Issue)**
+   - **Issue**: Local TLE file (`data/iss_tle.json`) was missing `TLE_LINE1` and `TLE_LINE2` after updating via JSON API
+   - **Root Cause**: `download_iss_tle_json()` uses JSON format which provides orbital elements but NOT TLE lines required by Skyfield
+   - **Solution**: 
+     - Created script to download 3LE format data (includes TLE lines)
+     - Merged TLE lines into existing JSON file structure
+     - Verified position calculation works with valid (non-NaN) values
+   - **Status**: ✅ Resolved - Foundation fixed, position calculations now work correctly
+
+2. **NaN Position Values Causing Map Crash**
+   - **Issue**: Dashboard crashing with `ValueError: Location values cannot contain NaNs` when position calculation returned NaN
+   - **Root Cause**: Folium map creation cannot accept NaN values for latitude/longitude (caused by missing TLE lines)
+   - **Solution**: 
+     - Fixed root cause: Added TLE lines to local file
+     - Added NaN validation in `create_map()` function
+     - Added validation before creating both 2D map and 3D plot views
+     - Added helpful error messages with troubleshooting steps
+   - **Status**: ✅ Resolved
+
+2. **Indentation Errors**
+   - **Issue**: `IndentationError: expected an indented block` preventing dashboard from loading
+   - **Root Cause**: Incorrect indentation when adding new code blocks (debug expander, else block)
+   - **Solution**: Fixed indentation for all affected code blocks
+   - **Status**: ✅ Resolved
+
+### ✅ Improvements
+
+1. **Enhanced TLE Data Freshness Warning System**
+   - **Before**: Simple binary check (< 12 hours = fresh, else warning)
+   - **After**: Graduated warning system:
+     - < 7 days: Green "Data Fresh"
+     - 7-10 days: Yellow "Data Getting Old" (with days until expiration)
+     - 10-14 days: Yellow "Data Old" (with expiration countdown)
+     - > 14 days: Red "Data Expired" (update required)
+   - **Impact**: More accurate warnings that reflect TLE data validity period (~2 weeks)
+   - **Status**: ✅ Implemented
+
+2. **Better Error Handling**
+   - Added comprehensive NaN validation throughout dashboard
+   - Clear error messages guide users to solutions
+   - Graceful degradation when position calculation fails
+   - **Status**: ✅ Implemented
+
+### 📚 Documentation Updates
+
+- Updated `ERROR_RESOLUTION_LOG.md` with Error #7 (NaN map crash) and Error #8 (Indentation errors)
+- Updated `CHANGELOG.md` with recent fixes
+- Enhanced error handling documentation
+
+---
+
 ## Format
 
 Each entry includes:

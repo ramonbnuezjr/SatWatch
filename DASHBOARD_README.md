@@ -154,6 +154,62 @@ The Streamlit server process is not running. This can happen if:
 - If you still see flickering, try refreshing the browser page
 - The map uses stable keys to prevent unnecessary recreation
 
+### "Location values cannot contain NaNs" Error
+
+**Symptoms**: 
+- Dashboard shows error: `ValueError: Location values cannot contain NaNs`
+- Map or 3D view fails to display
+- Error occurs when trying to render ISS position
+
+**Root Cause**: 
+Position calculation returned NaN (Not a Number) values. This can happen when:
+- **Most Common**: Local TLE file is missing `TLE_LINE1` and `TLE_LINE2` fields (Skyfield requires these)
+- TLE data is invalid or corrupted
+- TLE data is too old or expired
+- Error in position calculation
+- Invalid orbital elements in TLE data
+
+**Solution**:
+1. **Check local file has TLE lines**: 
+   ```bash
+   grep "TLE_LINE" data/iss_tle.json
+   ```
+   - If missing, download 3LE format and add TLE lines to file
+
+2. **Switch data source**: In the sidebar, change from "Local File" to "CelesTrak API"
+   - API mode downloads fresh data with TLE lines automatically
+
+3. **Update TLE data properly**: 
+   - Use 3LE format (`FORMAT=3le`) to get TLE lines, not JSON format
+   - Ensure `TLE_LINE1` and `TLE_LINE2` are included in local file
+
+4. **Refresh page**: Reload the dashboard after fixing TLE data
+
+**Prevention**:
+- Always ensure local TLE files contain `TLE_LINE1` and `TLE_LINE2` fields
+- When updating TLE data, use 3LE format to get TLE lines
+- Keep TLE data updated (refresh every few days)
+- Use CelesTrak API for most up-to-date data
+- Dashboard now validates position values and shows helpful error messages
+
+### "IndentationError" or Script Execution Error
+
+**Symptoms**: 
+- Dashboard shows: `IndentationError: expected an indented block`
+- Page fails to load completely
+- Script execution error in browser
+
+**Root Cause**: 
+Code syntax error due to incorrect indentation (usually after code updates)
+
+**Solution**:
+1. **Refresh the page**: Sometimes a simple refresh resolves temporary issues
+2. **Check server logs**: Look at Streamlit server output for detailed error
+3. **Restart server**: Stop and restart the Streamlit server
+4. **Report issue**: If problem persists, check GitHub issues or report the error
+
+**Status**: ✅ **Fixed** - All known indentation errors have been resolved
+
 ## Customization
 
 ### Change refresh interval
