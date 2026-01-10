@@ -341,6 +341,47 @@ The Streamlit server process was not running. This can occur when:
 
 ---
 
+## 2025-01 - Conjunction Risk Calculator
+
+### ✅ New Feature: Collision Risk Assessment
+
+**Added**: `calculate_conjunction_risk()` function in `src/conjunction_risk.py`
+
+**Features**:
+- Propagates two satellites forward in time using SGP4
+- Calculates 3D distance between satellites at 1-minute intervals
+- Identifies minimum distance and time of closest approach
+- Risk level classification:
+  - **CRITICAL**: Distance < 1 km
+  - **HIGH RISK**: Distance < 5 km
+  - **NORMAL**: Distance ≥ 5 km
+- Returns detailed results including positions at closest approach
+- Includes `format_conjunction_report()` for human-readable output
+
+**Usage**:
+```python
+from conjunction_risk import calculate_conjunction_risk, format_conjunction_report
+
+result = calculate_conjunction_risk(sat1_tle, sat2_tle, hours_ahead=48)
+print(format_conjunction_report(result))
+```
+
+**Technical Details**:
+- Uses Skyfield for SGP4 propagation
+- Configurable time horizon (default: 48 hours)
+- Configurable step size (default: 1 minute)
+- Handles propagation errors gracefully
+- Returns structured dictionary with all analysis results
+
+**Status**: ✅ Implemented and tested
+
+**Next Steps**:
+- Integrate into dashboard for real-time monitoring
+- Add batch analysis for multiple satellite pairs
+- Implement alerting system based on risk levels
+
+---
+
 ## Format
 
 Each entry includes:

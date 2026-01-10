@@ -15,8 +15,8 @@
 | --- | --- | --- |
 | TLE Fetching | HTTP calls to CelesTrak/Space-Track | ❌ No |
 | Position Calculation | SGP4 propagation (Kepler's laws + perturbations) | ❌ No — it's **physics** |
-| Collision Detection | Distance threshold (`< 5km` → HIGH RISK) | ❌ No — it's **rule-based** |
-| Alerting | If risk > threshold → send email | ❌ No — it's **conditional logic** |
+| Collision Detection | Distance threshold (`< 5km` → HIGH RISK, `< 1km` → CRITICAL) | ❌ No — it's **rule-based** |
+| Alerting | If risk > threshold → send email | ❌ No — it's **conditional logic** (planned) |
 
 **Same input → same output. Every time.** That's deterministic.
 
@@ -103,7 +103,7 @@ SatWatch uses **SGP4 (Simplified General Perturbations 4)** propagation:
 
 ### Future Phases (Planned)
 
-- **Phase 4**: Collision risk assessment
+- **Phase 4**: Collision risk assessment ✅ **IN PROGRESS** - Basic conjunction calculator implemented
 - **Phase 5**: Alerting system
 - **Phase 6**: Historical tracking
 - **Phase 7**: API endpoints

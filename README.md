@@ -22,6 +22,7 @@ A Python project for tracking satellites in real-time, starting with the Interna
 - ✅ JSON validation tools
 - ✅ **Multi-Satellite Data Fetcher** - Fetches TLE data for multiple satellites
 - ✅ **Satellites Configuration** - JSON config file for tracked satellites
+- ✅ **Conjunction Risk Calculator** - Collision risk assessment between two satellites
 - ✅ **TESTED AND VERIFIED** - Core ISS tracking and dashboard successfully tested and working
 
 ### In Progress / Known Issues ⚠️
@@ -37,6 +38,7 @@ A Python project for tracking satellites in real-time, starting with the Interna
 - **Interactive web dashboard** with real-time map visualization
 - Handle both TLE lines and orbital elements in JSON
 - Auto-refreshing dashboard updates every 10 seconds
+- **Conjunction risk analysis** - Calculate collision risk between two satellites
 
 ### Known Challenges & Solutions
 - **Challenge**: Skyfield requires TLE lines, not just orbital elements
@@ -97,7 +99,26 @@ python src/iss_tracker_json.py
 python src/iss_tracker_json.py --local
 ```
 
-### Option 4: Interactive Web Dashboard 🆕
+### Option 4: Conjunction Risk Analysis 🆕
+
+```bash
+python3 -c "
+import sys
+sys.path.insert(0, 'src')
+from conjunction_risk import calculate_conjunction_risk, format_conjunction_report
+from iss_tracker_json import load_iss_tle_from_file
+
+# Load TLE data for two satellites
+sat1 = load_iss_tle_from_file()  # ISS
+sat2 = load_iss_tle_from_file()  # In practice, load different satellite
+
+# Calculate risk
+result = calculate_conjunction_risk(sat1, sat2, hours_ahead=48)
+print(format_conjunction_report(result))
+"
+```
+
+### Option 5: Interactive Web Dashboard 🆕
 
 ```bash
 streamlit run src/dashboard.py
@@ -173,7 +194,8 @@ satwatch/
 ├── src/
 │   ├── iss_tracker.py      # ISS tracker (text TLE format)
 │   ├── iss_tracker_json.py # ISS tracker (JSON format)
-│   └── dashboard.py        # Streamlit web dashboard
+│   ├── dashboard.py        # Streamlit web dashboard
+│   └── conjunction_risk.py # Collision risk calculator
 ├── data/
 │   ├── iss_tle.json        # Local JSON TLE data
 │   └── README.md          # Data format documentation
@@ -205,6 +227,7 @@ TLE data is updated regularly (typically every few days) and is provided by orga
 - [x] Multi-satellite tracking ✅ **COMPLETE** - Implementation complete, NaN issues resolved
 - [x] Fix multi-satellite position calculations (NaN issue) ✅ **RESOLVED** - Using 3LE format
 - [x] Fix dashboard NaN map crash ✅ **RESOLVED** - Added validation and error handling
+- [x] Collision risk assessment ✅ **COMPLETE** - Conjunction risk calculator with risk level flags
 - [ ] Historical tracking
 - [ ] Alerts and notifications
 - [ ] Export position data
