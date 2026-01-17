@@ -11,6 +11,7 @@ Author: SatWatch Project
 import sys
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
+from typing import List, Tuple, Optional
 import math
 import streamlit as st
 import folium
@@ -251,9 +252,34 @@ def calculate_satellite_positions(satellites_data: list, current_time: datetime)
             x, y, z = lat_lon_alt_to_xyz(lat, lon, alt)
             
             name = sat_data.get('OBJECT_NAME', 'Unknown')
-            norad_id = sat_data.get('OBJECT_ID', 'Unknown')
             
-            positions.append((x, y, z, name, alt, norad_id))
+            # Extract catalog number (NORAD_CAT_ID is preferred, fallback to OBJECT_ID or TLE)
+            catnr = None
+            if 'NORAD_CAT_ID' in sat_data:
+                try:
+                    catnr = int(sat_data['NORAD_CAT_ID'])
+                except (ValueError, TypeError):
+                    pass
+            
+            # If NORAD_CAT_ID not available, try OBJECT_ID
+            if catnr is None and 'OBJECT_ID' in sat_data:
+                obj_id = sat_data['OBJECT_ID']
+                try:
+                    catnr = int(obj_id)
+                except (ValueError, TypeError):
+                    # OBJECT_ID might be international designator, try extracting from TLE
+                    tle_line1 = sat_data.get('TLE_LINE1', '')
+                    if tle_line1.startswith('1 '):
+                        try:
+                            catnr = int(tle_line1[2:7].strip())
+                        except (ValueError, IndexError):
+                            pass
+            
+            # If still no catalog number, skip this satellite
+            if catnr is None:
+                continue
+            
+            positions.append((x, y, z, name, alt, catnr))
         except Exception as e:
             # Skip satellites that can't be parsed
             continue
@@ -275,7 +301,7 @@ def calculate_tracked_satellite_positions(tracked_satellites: list, satellites_t
         current_time: Current datetime object
         
     Returns:
-        list: List of (x, y, z, name, altitude, sat_type, catnr) tuples
+        list: List of (x, y, z, name, altitude, sat_type, catnr, lat, lon) tuples
     """
     from skyfield.api import load
     
@@ -317,7 +343,9 @@ def calculate_tracked_satellite_positions(tracked_satellites: list, satellites_t
                 st.warning(f"Coordinate conversion returned NaN for {sat_name} (CATNR: {catnr})")
                 continue
             
-            positions.append((x, y, z, sat_name, alt, sat_type, catnr))
+            # Return: (x, y, z, name, alt, sat_type, catnr) for 3D view
+            # Also store lat/lon for 2D map use
+            positions.append((x, y, z, sat_name, alt, sat_type, catnr, lat, lon))
         except Exception as e:
             # Log the error for debugging
             st.warning(f"Error calculating position for {sat_name} (CATNR: {catnr}): {e}")
@@ -429,17 +457,24 @@ def get_data_freshness_status(epoch_str: str) -> tuple[str, float, str]:
         return 'expired', 999, "Unable to determine data age"
 
 
-def create_map(latitude: float, longitude: float, altitude: float):
+def create_map(
+    latitude: float, 
+    longitude: float, 
+    altitude: float,
+    all_satellites: Optional[List[Tuple[float, float, float, str, str, int]]] = None
+):
     """
-    Create a Folium map with ISS position marker.
+    Create a Folium map with satellite position markers.
     
     Args:
-        latitude: ISS latitude in degrees
-        longitude: ISS longitude in degrees
-        altitude: ISS altitude in kilometers
+        latitude: Primary satellite (ISS) latitude in degrees (for centering)
+        longitude: Primary satellite (ISS) longitude in degrees (for centering)
+        altitude: Primary satellite (ISS) altitude in kilometers
+        all_satellites: Optional list of (lat, lon, alt, name, sat_type, catnr) tuples
+                      for all tracked satellites to display
         
     Returns:
-        folium.Map: Map object with ISS marker
+        folium.Map: Map object with satellite markers
         
     Raises:
         ValueError: If latitude, longitude, or altitude contains NaN values
@@ -451,36 +486,88 @@ def create_map(latitude: float, longitude: float, altitude: float):
             "Position calculation may have failed. Try refreshing or using CelesTrak API data source."
         )
     
-    # Create map centered on ISS position
+    # Create map centered on primary satellite (ISS) position
     m = folium.Map(
         location=[latitude, longitude],
         zoom_start=3,
         tiles='CartoDB dark_matter'  # Dark theme
     )
     
-    # Add ISS marker
-    folium.CircleMarker(
-        location=[latitude, longitude],
-        radius=10,
-        popup=f'ISS<br>Altitude: {altitude:.2f} km',
-        tooltip='International Space Station',
-        color='red',
-        fill=True,
-        fillColor='red',
-        fillOpacity=0.8,
-        weight=2
-    ).add_to(m)
+    # Color coding for satellite types
+    type_colors = {
+        'station': 'red',
+        'satellite': 'blue',
+        'debris': 'orange'
+    }
     
-    # Add a larger circle to show visibility area
-    folium.Circle(
-        location=[latitude, longitude],
-        radius=2000000,  # ~2000 km radius (approximate visibility)
-        popup='Approximate ISS visibility area',
-        color='red',
-        fill=False,
-        weight=1,
-        opacity=0.3
-    ).add_to(m)
+    # Add markers for all tracked satellites if provided
+    if all_satellites:
+        for sat_data in all_satellites:
+            # Handle both formats: (x, y, z, name, alt, sat_type, catnr, lat, lon) or (lat, lon, alt, name, sat_type, catnr)
+            if len(sat_data) == 9:
+                # New format with x, y, z and lat, lon
+                x, y, z, sat_name, sat_alt, sat_type, catnr, sat_lat, sat_lon = sat_data
+            elif len(sat_data) == 6:
+                # Old format: (lat, lon, alt, name, sat_type, catnr)
+                sat_lat, sat_lon, sat_alt, sat_name, sat_type, catnr = sat_data
+            else:
+                # Unexpected format, skip
+                continue
+            # Skip if position is invalid
+            if math.isnan(sat_lat) or math.isnan(sat_lon) or math.isnan(sat_alt):
+                continue
+            
+            # Determine color based on type
+            color = type_colors.get(sat_type, 'gray')
+            
+            # Special styling for ISS (larger, more prominent)
+            if catnr == 25544 or 'ISS' in sat_name.upper():
+                radius = 12
+                weight = 3
+            else:
+                radius = 8
+                weight = 2
+            
+            # Add marker
+            folium.CircleMarker(
+                location=[sat_lat, sat_lon],
+                radius=radius,
+                popup=f'{sat_name}<br>Altitude: {sat_alt:.2f} km<br>Type: {sat_type}',
+                tooltip=sat_name,
+                color=color,
+                fill=True,
+                fillColor=color,
+                fillOpacity=0.8,
+                weight=weight
+            ).add_to(m)
+    else:
+        # Fallback: Just show ISS if no satellite list provided
+        folium.CircleMarker(
+            location=[latitude, longitude],
+            radius=10,
+            popup=f'ISS<br>Altitude: {altitude:.2f} km',
+            tooltip='International Space Station',
+            color='red',
+            fill=True,
+            fillColor='red',
+            fillOpacity=0.8,
+            weight=2
+        ).add_to(m)
+    
+    # Add legend
+    legend_html = '''
+    <div style="position: fixed; 
+                bottom: 50px; left: 50px; width: 200px; height: 120px; 
+                background-color: rgba(30, 30, 30, 0.8);
+                border:2px solid grey; z-index:9999; font-size:14px;
+                padding: 10px">
+    <p><b>Satellite Types</b></p>
+    <p><span style="color:red;">●</span> Stations</p>
+    <p><span style="color:blue;">●</span> Satellites</p>
+    <p><span style="color:orange;">●</span> Debris</p>
+    </div>
+    '''
+    m.get_root().html.add_child(folium.Element(legend_html))
     
     return m
 
@@ -589,7 +676,8 @@ def create_3d_tracked_satellites_plot(
     show_stations: bool = True,
     show_satellites: bool = True,
     show_debris: bool = True,
-    proximity_radius_km: float = 1000.0
+    proximity_radius_km: float = 1000.0,
+    focus_mode: bool = False
 ):
     """
     Create a 3D Plotly plot showing Earth, ISS, and tracked satellites with color coding.
@@ -601,7 +689,7 @@ def create_3d_tracked_satellites_plot(
       * Stations (red) - like ISS
       * Satellites (blue) - operational satellites
       * Debris (orange) - space debris
-    - Only shows objects within proximity_radius_km of ISS
+    - Only shows objects within proximity_radius_km of ISS (or all tracked satellites in focus mode)
     
     Args:
         iss_position: Dictionary with ISS latitude, longitude, altitude
@@ -613,9 +701,10 @@ def create_3d_tracked_satellites_plot(
         show_satellites: If True, show satellites
         show_debris: If True, show debris
         proximity_radius_km: Radius in km around ISS to show other objects
+        focus_mode: If True, show tracked satellites prominently with nearby objects as secondary
         
     Returns:
-        tuple: (plotly.graph_objects.Figure, int, int) - (figure, shown_count, total_count)
+        tuple: (plotly.graph_objects.Figure, int, int, int) - (figure, shown_count, total_count, nearby_count)
     """
     earth_radius = 6371.0  # km
     
@@ -641,45 +730,128 @@ def create_3d_tracked_satellites_plot(
         current_time
     )
     
+    # Get tracked satellite catalog numbers for focus mode
+    tracked_catnrs = {sat['catnr'] for sat in tracked_satellites}
+    
+    # In focus mode, calculate positions of all tracked satellites for proximity checks
+    tracked_sat_positions_3d = {}
+    if focus_mode:
+        # Calculate 3D positions for all tracked satellites
+        for x, y, z, name, alt, sat_type, catnr, lat, lon in all_sat_positions:
+            if not (math.isnan(x) or math.isnan(y) or math.isnan(z)):
+                tracked_sat_positions_3d[catnr] = (x, y, z)
+    
     # Filter satellites by type and proximity
-    stations_data = {'x': [], 'y': [], 'z': [], 'names': []}
-    satellites_data = {'x': [], 'y': [], 'z': [], 'names': []}
-    debris_data = {'x': [], 'y': [], 'z': [], 'names': []}
+    # Primary: tracked satellites (in focus mode) or all (in normal mode)
+    primary_stations_data = {'x': [], 'y': [], 'z': [], 'names': [], 'catnrs': []}
+    primary_satellites_data = {'x': [], 'y': [], 'z': [], 'names': [], 'catnrs': []}
+    primary_debris_data = {'x': [], 'y': [], 'z': [], 'names': [], 'catnrs': []}
+    
+    # Secondary: nearby objects (only in focus mode)
+    secondary_data = {'x': [], 'y': [], 'z': [], 'names': []}
     
     # Total count should be based on configured satellites, not just successfully calculated ones
     total_count = len(tracked_satellites)
     shown_count = 0
+    nearby_count = 0
     
-    for x, y, z, name, alt, sat_type, catnr in all_sat_positions:
-        # Calculate distance from ISS
-        distance = calculate_distance_3d(iss_pos_3d, (x, y, z))
+    for x, y, z, name, alt, sat_type, catnr, lat, lon in all_sat_positions:
+        if math.isnan(x) or math.isnan(y) or math.isnan(z):
+            continue
         
-        # Only show if within proximity radius
-        if distance <= proximity_radius_km:
-            shown_count += 1
+        is_tracked = catnr in tracked_catnrs
+        
+        if focus_mode:
+            # Focus mode: Show tracked satellites as primary, nearby objects as secondary
+            if is_tracked:
+                # This is a tracked satellite - show as primary
+                shown_count += 1
+                hover_text = f"{name}<br>Alt: {alt:.0f} km<br>Type: {sat_type}"
+                
+                if sat_type == 'station' and show_stations:
+                    primary_stations_data['x'].append(x)
+                    primary_stations_data['y'].append(y)
+                    primary_stations_data['z'].append(z)
+                    primary_stations_data['names'].append(hover_text)
+                    primary_stations_data['catnrs'].append(catnr)
+                elif sat_type == 'satellite' and show_satellites:
+                    primary_satellites_data['x'].append(x)
+                    primary_satellites_data['y'].append(y)
+                    primary_satellites_data['z'].append(z)
+                    primary_satellites_data['names'].append(hover_text)
+                    primary_satellites_data['catnrs'].append(catnr)
+                elif sat_type == 'debris' and show_debris:
+                    primary_debris_data['x'].append(x)
+                    primary_debris_data['y'].append(y)
+                    primary_debris_data['z'].append(z)
+                    primary_debris_data['names'].append(hover_text)
+                    primary_debris_data['catnrs'].append(catnr)
+            # Skip tracked satellites in this loop (they're handled above)
+            # This loop only processes tracked satellites from all_sat_positions
+        else:
+            # Normal mode: Show all objects within proximity of ISS
+            distance = calculate_distance_3d(iss_pos_3d, (x, y, z))
             
-            # Skip ISS itself (we'll show it separately)
-            if catnr == 25544:
-                continue
+            if distance <= proximity_radius_km:
+                shown_count += 1
+                
+                # Skip ISS itself (we'll show it separately)
+                if catnr == 25544:
+                    continue
+                
+                hover_text = f"{name}<br>Alt: {alt:.0f} km<br>Distance from ISS: {distance:.0f} km"
+                
+                if sat_type == 'station' and show_stations:
+                    primary_stations_data['x'].append(x)
+                    primary_stations_data['y'].append(y)
+                    primary_stations_data['z'].append(z)
+                    primary_stations_data['names'].append(hover_text)
+                    primary_stations_data['catnrs'].append(catnr)
+                elif sat_type == 'satellite' and show_satellites:
+                    primary_satellites_data['x'].append(x)
+                    primary_satellites_data['y'].append(y)
+                    primary_satellites_data['z'].append(z)
+                    primary_satellites_data['names'].append(hover_text)
+                    primary_satellites_data['catnrs'].append(catnr)
+                elif sat_type == 'debris' and show_debris:
+                    primary_debris_data['x'].append(x)
+                    primary_debris_data['y'].append(y)
+                    primary_debris_data['z'].append(z)
+                    primary_debris_data['names'].append(hover_text)
+                    primary_debris_data['catnrs'].append(catnr)
+    
+    # In focus mode, fetch and process nearby objects from CelesTrak
+    if focus_mode and tracked_sat_positions_3d:
+        try:
+            # Fetch additional satellites from CelesTrak for nearby objects
+            nearby_satellites_data = download_multiple_satellites(group='active', limit=300)
+            nearby_objects_positions = calculate_satellite_positions(nearby_satellites_data, current_time)
             
-            # Organize by type
-            hover_text = f"{name}<br>Alt: {alt:.0f} km<br>Distance from ISS: {distance:.0f} km"
-            
-            if sat_type == 'station' and show_stations:
-                stations_data['x'].append(x)
-                stations_data['y'].append(y)
-                stations_data['z'].append(z)
-                stations_data['names'].append(hover_text)
-            elif sat_type == 'satellite' and show_satellites:
-                satellites_data['x'].append(x)
-                satellites_data['y'].append(y)
-                satellites_data['z'].append(z)
-                satellites_data['names'].append(hover_text)
-            elif sat_type == 'debris' and show_debris:
-                debris_data['x'].append(x)
-                debris_data['y'].append(y)
-                debris_data['z'].append(z)
-                debris_data['names'].append(hover_text)
+            # Filter to only show objects near tracked satellites
+            for x, y, z, name, alt, catnr in nearby_objects_positions:
+                if catnr in tracked_catnrs:
+                    continue  # Skip tracked satellites
+                
+                if math.isnan(x) or math.isnan(y) or math.isnan(z):
+                    continue
+                
+                # Check distance to nearest tracked satellite
+                min_distance = float('inf')
+                for tracked_pos in tracked_sat_positions_3d.values():
+                    distance = calculate_distance_3d(tracked_pos, (x, y, z))
+                    min_distance = min(min_distance, distance)
+                
+                if min_distance <= proximity_radius_km:
+                    # Nearby object - show as secondary
+                    nearby_count += 1
+                    hover_text = f"{name}<br>Alt: {alt:.0f} km<br>Distance: {min_distance:.0f} km"
+                    secondary_data['x'].append(x)
+                    secondary_data['y'].append(y)
+                    secondary_data['z'].append(z)
+                    secondary_data['names'].append(hover_text)
+        except Exception:
+            # If fetching nearby objects fails, continue without them
+            pass
     
     # Create the 3D plot
     fig = go.Figure()
@@ -711,72 +883,118 @@ def create_3d_tracked_satellites_plot(
             hovertemplate='Orbit Path<extra></extra>'
         ))
     
-    # Add stations (red)
-    if stations_data['x']:
+    # Determine marker sizes based on focus mode
+    if focus_mode:
+        # Focus mode: Larger, brighter markers for tracked satellites
+        primary_marker_size = 12
+        primary_line_width = 2
+        secondary_marker_size = 4
+        secondary_opacity = 0.5
+    else:
+        # Normal mode: Standard sizes
+        primary_marker_size = 8
+        primary_line_width = 1
+        secondary_marker_size = 4
+        secondary_opacity = 0.5
+    
+    # Add primary stations (red) - tracked satellites in focus mode, or all in normal mode
+    if primary_stations_data['x']:
         fig.add_trace(go.Scatter3d(
-            x=stations_data['x'],
-            y=stations_data['y'],
-            z=stations_data['z'],
-            mode='markers',
+            x=primary_stations_data['x'],
+            y=primary_stations_data['y'],
+            z=primary_stations_data['z'],
+            mode='markers+text' if focus_mode else 'markers',
             marker=dict(
-                size=8,
+                size=primary_marker_size,
                 color='red',
                 symbol='circle',
-                line=dict(width=1, color='darkred')
+                line=dict(width=primary_line_width, color='darkred'),
+                opacity=1.0
             ),
-            name='Stations',
-            hovertemplate='%{text}<extra></extra>',
-            text=stations_data['names']
+            text=[name.split('<br>')[0] for name in primary_stations_data['names']] if focus_mode else None,
+            textposition='top center' if focus_mode else None,
+            name='My Stations' if focus_mode else 'Stations',
+            hovertemplate='%{customdata[0]}<extra></extra>',
+            customdata=[[name] for name in primary_stations_data['names']]
         ))
     
-    # Add satellites (blue)
-    if satellites_data['x']:
+    # Add primary satellites (blue)
+    if primary_satellites_data['x']:
         fig.add_trace(go.Scatter3d(
-            x=satellites_data['x'],
-            y=satellites_data['y'],
-            z=satellites_data['z'],
-            mode='markers',
+            x=primary_satellites_data['x'],
+            y=primary_satellites_data['y'],
+            z=primary_satellites_data['z'],
+            mode='markers+text' if focus_mode else 'markers',
             marker=dict(
-                size=6,
+                size=primary_marker_size if focus_mode else 6,
                 color='blue',
                 symbol='circle',
-                line=dict(width=1, color='darkblue')
+                line=dict(width=primary_line_width, color='darkblue'),
+                opacity=1.0
             ),
-            name='Satellites',
-            hovertemplate='%{text}<extra></extra>',
-            text=satellites_data['names']
+            text=[name.split('<br>')[0] for name in primary_satellites_data['names']] if focus_mode else None,
+            textposition='top center' if focus_mode else None,
+            name='My Satellites' if focus_mode else 'Satellites',
+            hovertemplate='%{customdata[0]}<extra></extra>',
+            customdata=[[name] for name in primary_satellites_data['names']]
         ))
     
-    # Add debris (orange)
-    if debris_data['x']:
+    # Add primary debris (orange)
+    if primary_debris_data['x']:
         fig.add_trace(go.Scatter3d(
-            x=debris_data['x'],
-            y=debris_data['y'],
-            z=debris_data['z'],
-            mode='markers',
+            x=primary_debris_data['x'],
+            y=primary_debris_data['y'],
+            z=primary_debris_data['z'],
+            mode='markers+text' if focus_mode else 'markers',
             marker=dict(
-                size=5,
+                size=primary_marker_size if focus_mode else 5,
                 color='orange',
                 symbol='circle',
-                line=dict(width=1, color='darkorange')
+                line=dict(width=primary_line_width, color='darkorange'),
+                opacity=1.0
             ),
-            name='Debris',
-            hovertemplate='%{text}<extra></extra>',
-            text=debris_data['names']
+            text=[name.split('<br>')[0] for name in primary_debris_data['names']] if focus_mode else None,
+            textposition='top center' if focus_mode else None,
+            name='My Debris' if focus_mode else 'Debris',
+            hovertemplate='%{customdata[0]}<extra></extra>',
+            customdata=[[name] for name in primary_debris_data['names']]
+        ))
+    
+    # Add secondary objects (nearby objects in focus mode)
+    if focus_mode and secondary_data['x']:
+        fig.add_trace(go.Scatter3d(
+            x=secondary_data['x'],
+            y=secondary_data['y'],
+            z=secondary_data['z'],
+            mode='markers',
+            marker=dict(
+                size=secondary_marker_size,
+                color='gray',
+                symbol='circle',
+                line=dict(width=0.5, color='darkgray'),
+                opacity=secondary_opacity
+            ),
+            name='Nearby Objects',
+            hovertemplate='%{customdata[0]}<extra></extra>',
+            customdata=[[name] for name in secondary_data['names']]
         ))
     
     # Add ISS current position (red, larger and more prominent)
+    # In focus mode, show with label; in normal mode, just marker
+    iss_marker_size = 14 if focus_mode else 12
     fig.add_trace(go.Scatter3d(
         x=[iss_x],
         y=[iss_y],
         z=[iss_z],
-        mode='markers',
+        mode='markers+text' if focus_mode else 'markers',
         marker=dict(
-            size=12,
+            size=iss_marker_size,
             color='red',
             symbol='circle',
-            line=dict(width=2, color='darkred')
+            line=dict(width=3 if focus_mode else 2, color='darkred')
         ),
+        text=['ISS'] if focus_mode else None,
+        textposition='top center' if focus_mode else None,
         name='ISS Current Position',
         hovertemplate=f'ISS<br>Lat: {iss_position["latitude"]:.2f}°<br>Lon: {iss_position["longitude"]:.2f}°<br>Alt: {iss_position["altitude"]:.2f} km<extra></extra>'
     ))
@@ -808,7 +1026,7 @@ def create_3d_tracked_satellites_plot(
         font=dict(color='white')
     )
     
-    return fig, shown_count, total_count
+    return fig, shown_count, total_count, nearby_count
 
 
 def create_3d_orbit_plot(position: dict, satellite, current_time, show_orbital_shell: bool = True, satellite_group: str = 'active', max_satellites: int = 500):
@@ -1211,16 +1429,29 @@ with st.sidebar:
             st.session_state.proximity_radius = proximity_radius
             
             st.caption(f"Tracking {len(tracked_satellites)} satellites")
+            
+            st.markdown("---")
+            
+            # Focus Mode toggle
+            focus_mode = st.checkbox(
+                "Focus on my satellites",
+                value=st.session_state.get('focus_mode', False),
+                help="When ON: Show your tracked satellites prominently with nearby objects as secondary. When OFF: Show all objects equally.",
+                key='focus_mode_checkbox'
+            )
+            st.session_state.focus_mode = focus_mode
         else:
             # Default values if no tracked satellites
             show_stations = True
             show_satellites = True
             show_debris = True
             proximity_radius = 1000
+            focus_mode = False
             st.session_state.show_stations = show_stations
             st.session_state.show_satellites = show_satellites
             st.session_state.show_debris = show_debris
             st.session_state.proximity_radius = proximity_radius
+            st.session_state.focus_mode = focus_mode
         
         st.markdown("---")
         
@@ -1269,12 +1500,13 @@ if position and json_data:
     show_satellites = st.session_state.get('show_satellites', True)
     show_debris = st.session_state.get('show_debris', True)
     proximity_radius = st.session_state.get('proximity_radius', 1000)
+    focus_mode = st.session_state.get('focus_mode', False)
     
     # Create tabs for 2D map and 3D orbit view
     tab1, tab2 = st.tabs(["🗺️ 2D Map View", "🌐 3D Orbit View"])
     
     with tab1:
-        st.subheader("🌍 ISS Current Position (2D Map)")
+        st.subheader("🌍 Tracked Satellites (2D Map)")
         
         # Validate position values before creating map
         if (math.isnan(position['latitude']) or 
@@ -1292,12 +1524,79 @@ if position and json_data:
                 "3. Check that TLE data is valid"
             )
         else:
-            # Create and display map with a stable, unchanging key to prevent flickering
+            # Calculate positions for all tracked satellites
+            all_sat_positions = []
+            nearby_sat_positions = []
+            
+            if tracked_satellites and satellites_tle_data:
+                try:
+                    all_sat_positions = calculate_tracked_satellite_positions(
+                        tracked_satellites,
+                        satellites_tle_data,
+                        current_time
+                    )
+                    
+                    # In focus mode, also fetch nearby objects
+                    if focus_mode:
+                        # Fetch additional satellites from CelesTrak for nearby objects
+                        try:
+                            nearby_satellites_data = download_multiple_satellites(
+                                group='active', 
+                                limit=200  # Reasonable limit for nearby objects
+                            )
+                            
+                            # Calculate positions for nearby satellites
+                            nearby_positions = calculate_satellite_positions(
+                                nearby_satellites_data, 
+                                current_time
+                            )
+                            
+                            # Filter to only show objects near tracked satellites
+                            tracked_catnrs = {sat['catnr'] for sat in tracked_satellites}
+                            tracked_positions_3d = {}
+                            for sat_data in all_sat_positions:
+                                # Unpack: (x, y, z, name, alt, sat_type, catnr, lat, lon)
+                                x, y, z, name, alt, sat_type, catnr, lat, lon = sat_data
+                                if not (math.isnan(x) or math.isnan(y) or math.isnan(z)):
+                                    tracked_positions_3d[catnr] = (x, y, z)
+                            
+                            for x, y, z, name, alt, catnr in nearby_positions:
+                                if catnr in tracked_catnrs:
+                                    continue  # Skip tracked satellites
+                                
+                                # Check distance to nearest tracked satellite
+                                min_distance = float('inf')
+                                for tracked_pos in tracked_positions_3d.values():
+                                    distance = calculate_distance_3d(tracked_pos, (x, y, z))
+                                    min_distance = min(min_distance, distance)
+                                
+                                if min_distance <= proximity_radius:
+                                    nearby_sat_positions.append((x, y, z, name, alt, catnr))
+                        except Exception as e:
+                            st.warning(f"Could not fetch nearby objects: {e}")
+                            
+                except Exception as e:
+                    st.warning(f"Could not calculate all satellite positions: {e}")
+            
+            # Create and display map
             try:
+                # Convert all_sat_positions to format expected by create_map: (lat, lon, alt, name, sat_type, catnr)
+                map_satellites = None
+                if all_sat_positions:
+                    map_satellites = []
+                    for sat_pos in all_sat_positions:
+                        # Unpack: (x, y, z, name, alt, sat_type, catnr, lat, lon)
+                        x, y, z, name, alt, sat_type, catnr, lat, lon = sat_pos
+                        if not (math.isnan(lat) or math.isnan(lon) or math.isnan(alt)):
+                            map_satellites.append((lat, lon, alt, name, sat_type, catnr))
+                
+                # Create map - in focus mode, show tracked satellites prominently
+                # Nearby objects are shown in 3D view, not on 2D map for simplicity
                 map_obj = create_map(
                     position['latitude'],
                     position['longitude'],
-                    position['altitude']
+                    position['altitude'],
+                    all_satellites=map_satellites
                 )
                 
                 # Use a fixed key so the map doesn't get recreated on every rerun
@@ -1315,9 +1614,47 @@ if position and json_data:
                 with col1:
                     st.info(f"**Last Update:** {position['timestamp']}")
                 with col2:
-                    st.info(f"**Speed:** ~7.66 km/s (orbital velocity)")
+                    if tracked_satellites:
+                        if focus_mode:
+                            st.info(f"**Tracking {len(tracked_satellites)} satellites, {len(nearby_sat_positions)} nearby objects**")
+                        else:
+                            st.info(f"**Tracked Satellites:** {len(tracked_satellites)}")
+                    else:
+                        st.info(f"**Speed:** ~7.66 km/s (orbital velocity)")
                 with col3:
                     st.info(f"**Orbit Period:** ~92 minutes")
+                
+                # Show satellite list if we have tracked satellites
+                if tracked_satellites and all_sat_positions:
+                    st.markdown("---")
+                    st.subheader("📋 Tracked Satellites")
+                    
+                    # Create a table showing all tracked satellites
+                    sat_data = []
+                    for sat_pos in all_sat_positions:
+                        # Unpack: (x, y, z, name, alt, sat_type, catnr, lat, lon)
+                        x, y, z, sat_name, sat_alt, sat_type, catnr, sat_lat, sat_lon = sat_pos
+                        if not (math.isnan(sat_lat) or math.isnan(sat_lon) or math.isnan(sat_alt)):
+                            sat_data.append({
+                                'Name': sat_name,
+                                'Type': sat_type.title(),
+                                'Latitude': f"{sat_lat:.4f}°",
+                                'Longitude': f"{sat_lon:.4f}°",
+                                'Altitude': f"{sat_alt:.2f} km",
+                                'CATNR': catnr
+                            })
+                    
+                    if sat_data:
+                        try:
+                            import pandas as pd
+                            df = pd.DataFrame(sat_data)
+                            st.dataframe(df, use_container_width=True, hide_index=True)
+                        except ImportError:
+                            # Fallback if pandas not available - show as markdown table
+                            st.markdown("| Name | Type | Latitude | Longitude | Altitude | CATNR |")
+                            st.markdown("|------|------|----------|-----------|----------|-------|")
+                            for sat in sat_data:
+                                st.markdown(f"| {sat['Name']} | {sat['Type']} | {sat['Latitude']} | {sat['Longitude']} | {sat['Altitude']} | {sat['CATNR']} |")
             except ValueError as e:
                 st.error(f"❌ **Map Creation Failed**: {str(e)}")
             except Exception as e:
@@ -1351,7 +1688,9 @@ if position and json_data:
                 # Check if we have tracked satellites to show
                 if tracked_satellites and satellites_tle_data:
                     # Use the new multi-satellite visualization
-                    fig_3d, shown_count, total_count = create_3d_tracked_satellites_plot(
+                    focus_mode = st.session_state.get('focus_mode', False)
+                    
+                    fig_3d, shown_count, total_count, nearby_count = create_3d_tracked_satellites_plot(
                         position,
                         satellite,
                         tracked_satellites,
@@ -1360,11 +1699,15 @@ if position and json_data:
                         show_stations=show_stations,
                         show_satellites=show_satellites,
                         show_debris=show_debris,
-                        proximity_radius_km=proximity_radius
+                        proximity_radius_km=proximity_radius,
+                        focus_mode=focus_mode
                     )
                     
-                    # Display count - note: ISS is always shown separately, so count excludes it
-                    st.info(f"**Showing {shown_count} of {total_count} tracked objects** (within {proximity_radius} km of ISS)")
+                    # Display count based on focus mode
+                    if focus_mode:
+                        st.info(f"**Tracking {shown_count} satellites, {nearby_count} nearby objects** (within {proximity_radius} km)")
+                    else:
+                        st.info(f"**Showing {shown_count} of {total_count} tracked objects** (within {proximity_radius} km of ISS)")
                     
                     # Debug information to help diagnose issues
                     if shown_count == 0 and total_count > 1:

@@ -23,6 +23,7 @@ A Python project for tracking satellites in real-time, starting with the Interna
 - ✅ **Multi-Satellite Data Fetcher** - Fetches TLE data for multiple satellites
 - ✅ **Satellites Configuration** - JSON config file for tracked satellites
 - ✅ **Conjunction Risk Calculator** - Collision risk assessment between two satellites
+- ✅ **Focus Mode** - Toggle to highlight your tracked satellites with nearby objects as secondary
 - ✅ **TESTED AND VERIFIED** - Core ISS tracking and dashboard successfully tested and working
 
 ### In Progress / Known Issues ⚠️
@@ -39,6 +40,7 @@ A Python project for tracking satellites in real-time, starting with the Interna
 - Handle both TLE lines and orbital elements in JSON
 - Auto-refreshing dashboard updates every 10 seconds
 - **Conjunction risk analysis** - Calculate collision risk between two satellites
+- **Focus Mode** - Highlight your tracked satellites with nearby objects shown as secondary markers
 
 ### Known Challenges & Solutions
 - **Challenge**: Skyfield requires TLE lines, not just orbital elements

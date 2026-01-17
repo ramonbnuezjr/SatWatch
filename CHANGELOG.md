@@ -382,6 +382,53 @@ print(format_conjunction_report(result))
 
 ---
 
+## 2025-01 - Focus Mode Feature
+
+### ✅ New Feature: Focus Mode Toggle
+
+**Date**: 2025-01
+
+**Feature**: Added "Focus Mode" toggle to the Streamlit dashboard sidebar.
+
+**Description**:
+Focus Mode allows users to prioritize their tracked satellites in the visualization. When enabled, tracked satellites are displayed prominently with larger markers, bright colors, and name labels, while nearby objects are shown as smaller, semi-transparent secondary markers.
+
+**Key Features**:
+- **Toggle Control**: "Focus on my satellites" checkbox in sidebar
+- **Primary Objects**: Tracked satellites from `satellites.json` shown with:
+  - Larger markers (size 12 vs 8)
+  - Bright colors
+  - Name labels in 3D view
+  - Thicker borders
+- **Secondary Objects**: Nearby objects within proximity threshold shown as:
+  - Smaller markers (size 4)
+  - Semi-transparent gray (50% opacity)
+  - No labels
+  - Automatically fetched from CelesTrak (up to 300 objects)
+- **Proximity Calculation**: In Focus Mode, proximity is calculated from all tracked satellites, not just ISS
+- **Stats Display**: Shows "Tracking X satellites, Y nearby objects" when Focus Mode is enabled
+- **Session Persistence**: Toggle state persists during the session
+
+**Technical Implementation**:
+- Modified `create_3d_tracked_satellites_plot()` to accept `focus_mode` parameter
+- Added logic to fetch nearby objects from CelesTrak when Focus Mode is enabled
+- Updated marker rendering to use different sizes and styles based on mode
+- Enhanced proximity calculation to work with multiple tracked satellites
+- Fixed data unpacking issues (7 values → 9 values to include lat/lon)
+
+**Files Modified**:
+- `src/dashboard.py`: Added Focus Mode toggle, updated 3D visualization, fixed unpacking errors
+
+**Status**: ✅ Implemented and tested
+
+**Benefits**:
+- Better visibility of user's satellite fleet
+- Reduced visual clutter when monitoring specific satellites
+- Easier identification of nearby objects that might pose conjunction risks
+- Improved user experience for operators tracking multiple satellites
+
+---
+
 ## Format
 
 Each entry includes:

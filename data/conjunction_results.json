@@ -1,0 +1,69 @@
+{
+  "timestamp": "2026-01-17T16:17:08.054591+00:00",
+  "total_risks": 3,
+  "results": [
+    {
+      "min_distance_km": 1288.534,
+      "min_distance_time": "2026-01-19 15:38:06.978776+00:00",
+      "risk_level": "NORMAL",
+      "risk_message": "NORMAL: Minimum distance of 1288.534 km at 2026-01-19 15:38:06 UTC. No immediate risk detected.",
+      "sat1_name": "ISS (ZARYA)",
+      "sat2_name": "HST",
+      "total_steps": 2881,
+      "analysis_period_hours": 48,
+      "step_size_minutes": 1,
+      "sat1_position_at_closest": {
+        "latitude": -32.2739,
+        "longitude": -68.6022,
+        "altitude_km": 427.32
+      },
+      "sat2_position_at_closest": {
+        "latitude": -28.0576,
+        "longitude": -57.0823,
+        "altitude_km": 484.57
+      }
+    },
+    {
+      "min_distance_km": 239.993,
+      "min_distance_time": "2026-01-17 16:38:07.347733+00:00",
+      "risk_level": "NORMAL",
+      "risk_message": "NORMAL: Minimum distance of 239.993 km at 2026-01-17 16:38:07 UTC. No immediate risk detected.",
+      "sat1_name": "ISS (ZARYA)",
+      "sat2_name": "CSS (TIANHE)",
+      "total_steps": 2881,
+      "analysis_period_hours": 48,
+      "step_size_minutes": 1,
+      "sat1_position_at_closest": {
+        "latitude": -5.7101,
+        "longitude": 142.3524,
+        "altitude_km": 425.17
+      },
+      "sat2_position_at_closest": {
+        "latitude": -7.6566,
+        "longitude": 142.8378,
+        "altitude_km": 381.3
+      }
+    },
+    {
+      "min_distance_km": 203.678,
+      "min_distance_time": "2026-01-19 05:39:07.704447+00:00",
+      "risk_level": "NORMAL",
+      "risk_message": "NORMAL: Minimum distance of 203.678 km at 2026-01-19 05:39:07 UTC. No immediate risk detected.",
+      "sat1_name": "HST",
+      "sat2_name": "CSS (TIANHE)",
+      "total_steps": 2881,
+      "analysis_period_hours": 48,
+      "step_size_minutes": 1,
+      "sat1_position_at_closest": {
+        "latitude": 15.0713,
+        "longitude": -35.8513,
+        "altitude_km": 478.3
+      },
+      "sat2_position_at_closest": {
+        "latitude": 16.4557,
+        "longitude": -35.2062,
+        "altitude_km": 381.97
+      }
+    }
+  ]
+}

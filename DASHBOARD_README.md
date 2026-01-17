@@ -7,10 +7,13 @@ A real-time Streamlit dashboard for tracking the International Space Station (IS
 - 🌍 **Interactive World Map**: Real-time ISS position displayed on a dark-themed map
 - 📊 **Live Data**: Auto-refreshes every 10 seconds (smooth, no flickering)
 - 📍 **Position Tracking**: Shows latitude, longitude, and altitude
-- 📡 **TLE Data Status**: Displays data freshness indicator (< 12 hours = fresh)
+- 📡 **TLE Data Status**: Displays data freshness indicator with graduated warnings
 - 🎨 **Dark Theme**: Professional, clean UI with dark theme
 - 🔄 **Auto-Refresh**: Automatically updates position every 10 seconds
 - ✅ **Stable Display**: Fixed flickering issues for smooth map updates
+- 🎯 **Focus Mode**: Toggle to highlight your tracked satellites with nearby objects as secondary
+- 🛰️ **Multi-Satellite Tracking**: Track multiple satellites from your `satellites.json` configuration
+- 🌐 **3D Orbit View**: Interactive 3D visualization with Plotly showing Earth, satellites, and orbit paths
 
 ## Installation
 
@@ -60,15 +63,56 @@ The dashboard will open in your default web browser at `http://localhost:8501`
   - Altitude (kilometers)
 - **TLE Data**:
   - Epoch timestamp
-  - Data freshness indicator (✅ if < 12 hours old)
+  - Data freshness indicator with graduated warnings:
+    - ✅ **Fresh**: < 7 days old (green)
+    - ⚠️ **Getting Old**: 7-10 days old (yellow)
+    - ⚠️ **Old**: 10-14 days old (yellow/orange)
+    - ❌ **Expired**: > 14 days old (red)
 - **Satellite Info**:
   - Satellite name
   - NORAD catalog ID
+- **Multi-Satellite Filters**:
+  - Type filters: Show/Hide stations, satellites, debris
+  - Proximity radius: Adjust distance threshold (100-5000 km)
+  - **Focus Mode**: Toggle to highlight your tracked satellites
 
 ### Data Source Selection
 Choose between:
 - **Local File**: Uses `data/iss_tle.json` (faster, no internet needed)
 - **CelesTrak API**: Downloads fresh data from CelesTrak (requires internet)
+
+### Focus Mode
+
+**Focus Mode** is a powerful feature that lets you prioritize your tracked satellites in the visualization.
+
+**When OFF (default)**:
+- Shows all objects within the proximity/type filters equally
+- All objects displayed with standard markers and colors
+- Proximity calculated from ISS position
+
+**When ON**:
+- **Primary Objects**: Your tracked satellites from `satellites.json` are displayed prominently:
+  - Larger markers (size 12)
+  - Bright colors
+  - Name labels visible
+  - Thicker borders
+- **Secondary Objects**: Nearby objects within proximity threshold are shown as:
+  - Smaller markers (size 4)
+  - Semi-transparent gray
+  - No labels
+  - Automatically fetched from CelesTrak
+- **Proximity**: Calculated from all your tracked satellites, not just ISS
+- **Stats**: Shows "Tracking X satellites, Y nearby objects"
+
+**Visual Distinctions in 3D View**:
+- **Your Satellites**: Large, bright, labeled markers
+- **Nearby Objects**: Small, muted, semi-transparent markers
+- **Risk Objects**: Red highlight (if conjunction data exists)
+
+**Use Cases**:
+- Monitor your satellite fleet while seeing nearby traffic
+- Identify potential conjunction risks with your assets
+- Focus on your satellites without visual clutter from unrelated objects
 
 ## Auto-Refresh
 
