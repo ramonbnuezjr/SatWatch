@@ -158,6 +158,20 @@ This document provides an overview of all documentation files in the SatWatch pr
 
 ---
 
+### cesium/README.md
+**Purpose:** CesiumJS 3D globe viewer documentation  
+**Audience:** Users wanting to use the professional 3D visualization  
+**Contents:**
+- Quick start guide
+- Data loading (sample or generated)
+- Playback controls
+- Technical details
+- Data format specification
+
+**When to read:** When you want to use the CesiumJS 3D globe viewer for time-animated satellite visualization.
+
+---
+
 ## Cursor AI Rules
 
 Located in `.cursor/rules/`, these files guide AI-assisted code generation:
@@ -260,3 +274,5 @@ When making code changes:
 
 - **v1.0** (Initial) - Basic ISS tracking with comprehensive documentation
 - **v1.1** (January 2025) - Added Streamlit dashboard with interactive map visualization
+- **v1.2** (January 2025) - Multi-satellite tracking, conjunction risk calculator
+- **v2.0** (January 2026) - UI enhancements (timeline controls), CesiumJS 3D globe viewer

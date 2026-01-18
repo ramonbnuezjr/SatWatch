@@ -224,18 +224,26 @@ satwatch/
 │   ├── iss_tracker.py      # ISS tracker (text TLE format)
 │   ├── iss_tracker_json.py # ISS tracker (JSON format)
 │   ├── dashboard.py        # Streamlit web dashboard
-│   └── conjunction_risk.py # Collision risk calculator
+│   ├── conjunction_risk.py # Collision risk calculator
+│   └── export_cesium_data.py # Export positions for CesiumJS
+├── cesium/                 # CesiumJS 3D globe viewer
+│   ├── index.html          # Main viewer HTML
+│   ├── satwatch-cesium.js  # Visualization module
+│   ├── sample-data.json    # Sample test data
+│   └── README.md           # Cesium documentation
 ├── data/
 │   ├── iss_tle.json        # Local JSON TLE data
-│   └── README.md          # Data format documentation
+│   └── README.md           # Data format documentation
+├── satellites.json         # Tracked satellites configuration
 ├── validate_json.py        # JSON validation tool
 ├── requirements.txt        # Python dependencies
-├── README.md              # This file
-├── DASHBOARD_README.md    # Dashboard documentation
-├── CODE_EXPLANATION.md    # Detailed code walkthrough
-├── TESTING_GUIDELINES.md  # Testing standards and practices
-├── scaffolding-plan.md    # Future project structure
-└── DOCUMENTATION_INDEX.md # Documentation overview and navigation
+├── README.md               # This file
+├── ARCHITECTURE.md         # System design and roadmap
+├── DASHBOARD_README.md     # Dashboard documentation
+├── CODE_EXPLANATION.md     # Detailed code walkthrough
+├── TESTING_GUIDELINES.md   # Testing standards and practices
+├── scaffolding-plan.md     # Future project structure
+└── DOCUMENTATION_INDEX.md  # Documentation overview and navigation
 ```
 
 ## What is TLE Data?
@@ -247,19 +255,44 @@ TLE (Two-Line Element) sets are a data format used to describe the orbit of Eart
 
 TLE data is updated regularly (typically every few days) and is provided by organizations like CelesTrak.
 
-## Next Steps
+## Development Roadmap
 
-- [x] Add visualization (map display) ✅ **COMPLETE** - Streamlit dashboard
-- [x] Real-time updates ✅ **COMPLETE** - Auto-refresh every 10 seconds
-- [x] 3D Orbit View ✅ **COMPLETE** - 3D visualization with Plotly
-- [x] Orbital Shell ✅ **COMPLETE** - Layer 1 implementation
-- [x] Multi-satellite tracking ✅ **COMPLETE** - Implementation complete, NaN issues resolved
-- [x] Fix multi-satellite position calculations (NaN issue) ✅ **RESOLVED** - Using 3LE format
-- [x] Fix dashboard NaN map crash ✅ **RESOLVED** - Added validation and error handling
-- [x] Collision risk assessment ✅ **COMPLETE** - Conjunction risk calculator with risk level flags
-- [ ] Historical tracking
-- [ ] Alerts and notifications
-- [ ] Export position data
+### Core Phases (Complete)
+
+| Phase | Status | Description |
+|-------|--------|-------------|
+| Phase 1: Basic ISS Tracking | ✅ Complete | TLE download, position calculation, terminal output |
+| Phase 2: Dashboard | ✅ Complete | Streamlit web UI with 2D/3D visualization |
+| Phase 3: Multi-Satellite | ✅ Complete | Track multiple satellites, proximity detection |
+| Phase 4: Collision Risk | ✅ Complete | Conjunction risk calculator |
+
+### UI Enhancement Phases (2026)
+
+| Phase | Status | Description |
+|-------|--------|-------------|
+| UI Phase 1: Timeline | ✅ Complete | Datetime picker for past/future viewing |
+| UI Phase 2: Search | 📋 Planned | Filter satellites by name or NORAD ID |
+| UI Phase 3: Orbital Data | 📋 Planned | Display orbital parameters (inclination, period, etc.) |
+| UI Phase 4: Enhanced List | 📋 Planned | Visibility toggles, grouping, favorites |
+
+### Cesium Bridge Phases (2026)
+
+| Phase | Status | Description |
+|-------|--------|-------------|
+| Cesium Phase 1: MVP | ✅ Complete | CesiumJS 3D globe with time animation |
+| Cesium Phase 2: Real-time | 📋 Planned | WebSocket updates, automated exports |
+| Cesium Phase 3: Advanced | 📋 Planned | Conjunction lines, footprints, ground stations |
+
+### Future Core Phases
+
+| Phase | Status | Description |
+|-------|--------|-------------|
+| Phase 5: Alerting | 📋 Planned | Notifications for conjunction events |
+| Phase 6: Historical | 📋 Planned | Store and replay past positions |
+| Phase 7: API | 📋 Planned | REST API for external integrations |
+| Phase 8: AI/ML | 📋 Planned | Anomaly detection (if needed) |
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed phase descriptions.
 
 ## Documentation
 
