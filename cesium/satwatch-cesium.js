@@ -75,6 +75,173 @@ const SatWatchCesium = (function() {
     }
     
     /**
+     * Generate a procedural starfield texture using canvas
+     * Creates sharp, realistic stars with varying brightness
+     * @param {number} size - Texture size (e.g., 2048)
+     * @param {number} starCount - Number of stars per face
+     * @param {boolean} addMilkyWay - Whether to add milky way glow
+     * @returns {HTMLCanvasElement} Canvas with starfield
+     */
+    function generateStarfieldTexture(size = 2048, starCount = 3000, addMilkyWay = false) {
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        
+        // Deep space black background
+        ctx.fillStyle = '#000005';
+        ctx.fillRect(0, 0, size, size);
+        
+        // Add subtle Milky Way glow if requested
+        if (addMilkyWay) {
+            const gradient = ctx.createLinearGradient(0, size * 0.3, size, size * 0.7);
+            gradient.addColorStop(0, 'rgba(30, 20, 40, 0)');
+            gradient.addColorStop(0.3, 'rgba(60, 40, 70, 0.15)');
+            gradient.addColorStop(0.5, 'rgba(80, 60, 90, 0.25)');
+            gradient.addColorStop(0.7, 'rgba(60, 40, 70, 0.15)');
+            gradient.addColorStop(1, 'rgba(30, 20, 40, 0)');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, size, size);
+            
+            // Add some nebula-like clouds
+            for (let i = 0; i < 20; i++) {
+                const x = Math.random() * size;
+                const y = size * 0.3 + Math.random() * size * 0.4;
+                const radius = 50 + Math.random() * 150;
+                const nebulaGradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+                const hue = 240 + Math.random() * 60; // Blue to purple
+                nebulaGradient.addColorStop(0, `hsla(${hue}, 50%, 30%, 0.1)`);
+                nebulaGradient.addColorStop(1, 'transparent');
+                ctx.fillStyle = nebulaGradient;
+                ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+            }
+        }
+        
+        // Draw stars with varying sizes and brightness
+        for (let i = 0; i < starCount; i++) {
+            const x = Math.random() * size;
+            const y = Math.random() * size;
+            
+            // Star brightness distribution (more dim stars than bright)
+            const brightness = Math.pow(Math.random(), 2);
+            const radius = 0.3 + brightness * 2.5;
+            
+            // Star color (mostly white, some blue/yellow tints)
+            const colorRandom = Math.random();
+            let r, g, b;
+            if (colorRandom < 0.7) {
+                // White stars
+                const intensity = 180 + brightness * 75;
+                r = g = b = intensity;
+            } else if (colorRandom < 0.85) {
+                // Blue stars (hot)
+                r = 150 + brightness * 50;
+                g = 170 + brightness * 60;
+                b = 220 + brightness * 35;
+            } else {
+                // Yellow/orange stars (cool)
+                r = 220 + brightness * 35;
+                g = 190 + brightness * 50;
+                b = 140 + brightness * 40;
+            }
+            
+            // Draw star with glow for brighter stars
+            if (brightness > 0.7) {
+                // Add glow for bright stars
+                const glowGradient = ctx.createRadialGradient(x, y, 0, x, y, radius * 4);
+                glowGradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.8)`);
+                glowGradient.addColorStop(0.3, `rgba(${r}, ${g}, ${b}, 0.3)`);
+                glowGradient.addColorStop(1, 'transparent');
+                ctx.fillStyle = glowGradient;
+                ctx.beginPath();
+                ctx.arc(x, y, radius * 4, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            // Draw star core (sharp point)
+            ctx.fillStyle = `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`;
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        return canvas;
+    }
+    
+    /**
+     * Create a procedural starfield skybox (no external images needed)
+     * Generates sharp, realistic stars programmatically
+     */
+    function createProceduralSkybox() {
+        try {
+            // Generate 6 unique starfield faces with Milky Way on some faces
+            const sources = {
+                positiveX: generateStarfieldTexture(2048, 3000, false).toDataURL(),
+                negativeX: generateStarfieldTexture(2048, 3000, false).toDataURL(),
+                positiveY: generateStarfieldTexture(2048, 2500, false).toDataURL(),  // Top - fewer stars
+                negativeY: generateStarfieldTexture(2048, 3500, true).toDataURL(),   // Bottom - Milky Way
+                positiveZ: generateStarfieldTexture(2048, 3000, true).toDataURL(),   // Front - Milky Way
+                negativeZ: generateStarfieldTexture(2048, 3000, false).toDataURL()
+            };
+            
+            const customSkybox = new Cesium.SkyBox({ sources });
+            viewer.scene.skyBox = customSkybox;
+            console.log('Procedural starfield skybox created (2048x2048, ~3000 stars per face)');
+            return true;
+        } catch (error) {
+            console.error('Procedural skybox failed:', error);
+            return false;
+        }
+    }
+    
+    /**
+     * Create skybox from local files (for offline use with custom images)
+     * Place high-res skybox images in cesium/skybox/ folder
+     */
+    function createLocalSkybox() {
+        return new Promise((resolve) => {
+            // Check if local skybox files exist by trying to load one
+            const testImg = new Image();
+            testImg.onload = () => {
+                try {
+                    const customSkybox = new Cesium.SkyBox({
+                        sources: {
+                            positiveX: 'skybox/px.jpg',
+                            negativeX: 'skybox/nx.jpg',
+                            positiveY: 'skybox/py.jpg',
+                            negativeY: 'skybox/ny.jpg',
+                            positiveZ: 'skybox/pz.jpg',
+                            negativeZ: 'skybox/nz.jpg'
+                        }
+                    });
+                    viewer.scene.skyBox = customSkybox;
+                    console.log('Local high-resolution skybox loaded');
+                    resolve(true);
+                } catch (error) {
+                    console.warn('Local skybox loading error:', error);
+                    resolve(false);
+                }
+            };
+            testImg.onerror = () => {
+                console.log('No local skybox found, using procedural generation');
+                resolve(false);
+            };
+            testImg.src = 'skybox/px.jpg';
+        });
+    }
+    
+    /**
+     * Initialize the space background with the best available option
+     */
+    async function initializeSkybox() {
+        // Priority: 1) Local high-res images, 2) Procedural generation
+        const localLoaded = await createLocalSkybox();
+        if (!localLoaded) {
+            createProceduralSkybox();
+        }
+    }
+    
+    /**
      * Initialize the Cesium viewer
      * @param {string} containerId - ID of the container element
      * @returns {Cesium.Viewer} The Cesium viewer instance
@@ -122,16 +289,35 @@ const SatWatchCesium = (function() {
         addImageryLayer();
         
         // Configure the globe for satellite visualization
-        viewer.scene.globe.enableLighting = false;  // Simpler rendering without day/night
+        viewer.scene.globe.enableLighting = true;   // Enable lighting for realistic day/night
         viewer.scene.globe.showGroundAtmosphere = true;
-        viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString('#1a3a5c'); // Dark blue base
+        viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString('#0a1628'); // Very dark blue base
         
-        // Set dark space background
+        // ===== HIGH-QUALITY SPACE BACKGROUND =====
+        // Set pure black space background
         viewer.scene.backgroundColor = Cesium.Color.BLACK;
-        viewer.scene.sun.show = true;
-        viewer.scene.moon.show = false;
+        
+        // Initialize high-resolution skybox (async - tries local first, then procedural)
+        initializeSkybox();
+        
+        // Ensure skybox is visible
         viewer.scene.skyBox.show = true;
+        
+        // Configure sun and moon for realistic rendering
+        viewer.scene.sun.show = true;
+        viewer.scene.moon.show = true;
+        
+        // Sky atmosphere (the blue glow around Earth's edge)
         viewer.scene.skyAtmosphere.show = true;
+        viewer.scene.skyAtmosphere.brightnessShift = 0.0;  // No extra brightness
+        viewer.scene.skyAtmosphere.hueShift = 0.0;
+        viewer.scene.skyAtmosphere.saturationShift = 0.0;
+        
+        // Enable high dynamic range for better space rendering
+        viewer.scene.highDynamicRange = true;
+        
+        // Improve star rendering - increase fog density to make stars sharper
+        viewer.scene.fog.enabled = false;  // Disable fog for clearer space view
         
         // Set initial camera position (zoomed out view of Earth)
         viewer.camera.setView({
