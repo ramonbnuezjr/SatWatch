@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SatWatch - Cesium Viewer</title>
+    
+    <!-- CesiumJS CSS -->
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #000;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        
+        #cesiumContainer {
+            width: 100%;
+            height: 100%;
+        }
+        
+        /* Control Panel */
+        #controlPanel {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(20, 25, 35, 0.9);
+            border: 1px solid rgba(100, 150, 200, 0.3);
+            border-radius: 8px;
+            padding: 15px;
+            color: #fff;
+            z-index: 1000;
+            min-width: 280px;
+        }
+        
+        #controlPanel h2 {
+            font-size: 16px;
+            margin-bottom: 12px;
+            color: #4da6ff;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .control-group {
+            margin-bottom: 12px;
+        }
+        
+        .control-group label {
+            display: block;
+            font-size: 11px;
+            color: #8899aa;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .control-group input[type="file"] {
+            font-size: 12px;
+            color: #fff;
+        }
+        
+        .btn {
+            background: rgba(60, 120, 180, 0.6);
+            border: 1px solid rgba(100, 150, 200, 0.5);
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-right: 5px;
+            transition: all 0.2s;
+        }
+        
+        .btn:hover {
+            background: rgba(80, 140, 200, 0.8);
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .btn-primary {
+            background: rgba(50, 150, 100, 0.7);
+            border-color: rgba(80, 180, 130, 0.5);
+        }
+        
+        .btn-primary:hover {
+            background: rgba(70, 170, 120, 0.9);
+        }
+        
+        /* Status Display */
+        #statusDisplay {
+            margin-top: 15px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(100, 150, 200, 0.2);
+        }
+        
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            margin-bottom: 6px;
+        }
+        
+        .status-label {
+            color: #8899aa;
+        }
+        
+        .status-value {
+            color: #fff;
+            font-family: monospace;
+        }
+        
+        .status-value.live {
+            color: #4ade80;
+        }
+        
+        /* Legend */
+        #legend {
+            position: absolute;
+            bottom: 50px;
+            left: 10px;
+            background: rgba(20, 25, 35, 0.9);
+            border: 1px solid rgba(100, 150, 200, 0.3);
+            border-radius: 8px;
+            padding: 12px;
+            color: #fff;
+            z-index: 1000;
+        }
+        
+        #legend h3 {
+            font-size: 12px;
+            margin-bottom: 8px;
+            color: #8899aa;
+            text-transform: uppercase;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            margin-bottom: 4px;
+        }
+        
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        
+        .legend-color.station { background: #ff4444; }
+        .legend-color.satellite { background: #4488ff; }
+        .legend-color.debris { background: #ff8844; }
+        
+        /* Loading overlay */
+        #loadingOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            color: #fff;
+            font-size: 18px;
+        }
+        
+        #loadingOverlay.hidden {
+            display: none;
+        }
+        
+        /* Time display */
+        #timeDisplay {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(20, 25, 35, 0.9);
+            border: 1px solid rgba(100, 150, 200, 0.3);
+            border-radius: 8px;
+            padding: 12px 16px;
+            color: #fff;
+            z-index: 1000;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        
+        #timeDisplay .label {
+            font-size: 10px;
+            color: #8899aa;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay">
+        <div>Loading CesiumJS...</div>
+    </div>
+    
+    <!-- Cesium Container -->
+    <div id="cesiumContainer"></div>
+    
+    <!-- Control Panel -->
+    <div id="controlPanel">
+        <h2>🛰️ SatWatch Cesium</h2>
+        
+        <div class="control-group">
+            <label>Load Position Data</label>
+            <input type="file" id="fileInput" accept=".json">
+        </div>
+        
+        <div class="control-group">
+            <label>Quick Load</label>
+            <button class="btn btn-primary" id="loadSampleBtn">Load Satellite Data</button>
+        </div>
+        
+        <div class="control-group">
+            <label>Playback Controls</label>
+            <button class="btn" id="playBtn" disabled>▶ Play</button>
+            <button class="btn" id="pauseBtn" disabled>⏸ Pause</button>
+            <button class="btn" id="resetBtn" disabled>⏮ Reset</button>
+        </div>
+        
+        <div class="control-group">
+            <label>Playback Speed</label>
+            <select id="speedSelect" style="padding: 6px; border-radius: 4px; background: #1a2030; color: #fff; border: 1px solid rgba(100, 150, 200, 0.3);">
+                <option value="1">1x (Real-time)</option>
+                <option value="10">10x</option>
+                <option value="60" selected>60x (1 min/sec)</option>
+                <option value="300">300x (5 min/sec)</option>
+                <option value="600">600x (10 min/sec)</option>
+            </select>
+        </div>
+        
+        <div id="statusDisplay">
+            <div class="status-row">
+                <span class="status-label">Status:</span>
+                <span class="status-value" id="statusValue">No data loaded</span>
+            </div>
+            <div class="status-row">
+                <span class="status-label">Objects:</span>
+                <span class="status-value" id="objectCount">0</span>
+            </div>
+            <div class="status-row">
+                <span class="status-label">Time Range:</span>
+                <span class="status-value" id="timeRange">--</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Time Display -->
+    <div id="timeDisplay">
+        <div class="label">Simulation Time (UTC)</div>
+        <div id="currentTime">--:--:--</div>
+    </div>
+    
+    <!-- Legend -->
+    <div id="legend">
+        <h3>Object Types</h3>
+        <div class="legend-item">
+            <div class="legend-color station"></div>
+            <span>Space Station</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color satellite"></div>
+            <span>Satellite</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color debris"></div>
+            <span>Debris</span>
+        </div>
+    </div>
+    
+    <!-- CesiumJS Library -->
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Cesium.js"></script>
+    
+    <!-- SatWatch Cesium Module -->
+    <script src="satwatch-cesium.js"></script>
+    
+    <script>
+        // Initialize when DOM is ready
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize SatWatch Cesium viewer
+            const viewer = SatWatchCesium.init('cesiumContainer');
+            
+            // Hide loading overlay
+            document.getElementById('loadingOverlay').classList.add('hidden');
+            
+            // File input handler
+            document.getElementById('fileInput').addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(event) {
+                        try {
+                            const data = JSON.parse(event.target.result);
+                            SatWatchCesium.loadData(data);
+                        } catch (err) {
+                            alert('Error parsing JSON: ' + err.message);
+                        }
+                    };
+                    reader.readAsText(file);
+                }
+            });
+            
+            // Load live data button - tries satellite-positions.json first, falls back to sample
+            document.getElementById('loadSampleBtn').addEventListener('click', function() {
+                // First try the live exported data
+                fetch('satellite-positions.json')
+                    .then(response => {
+                        if (!response.ok) throw new Error('No live data');
+                        return response.json();
+                    })
+                    .then(data => {
+                        console.log('Loaded live satellite positions');
+                        SatWatchCesium.loadData(data);
+                    })
+                    .catch(() => {
+                        // Fall back to sample data
+                        console.log('Falling back to sample data');
+                        fetch('sample-data.json')
+                            .then(response => response.json())
+                            .then(data => SatWatchCesium.loadData(data))
+                            .catch(err => alert('Error loading data: ' + err.message));
+                    });
+            });
+            
+            // Playback controls
+            document.getElementById('playBtn').addEventListener('click', function() {
+                SatWatchCesium.play();
+            });
+            
+            document.getElementById('pauseBtn').addEventListener('click', function() {
+                SatWatchCesium.pause();
+            });
+            
+            document.getElementById('resetBtn').addEventListener('click', function() {
+                SatWatchCesium.reset();
+            });
+            
+            // Speed control
+            document.getElementById('speedSelect').addEventListener('change', function(e) {
+                SatWatchCesium.setSpeed(parseFloat(e.target.value));
+            });
+        });
+    </script>
+</body>
+</html>

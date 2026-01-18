@@ -4,7 +4,7 @@ A Python project for tracking satellites in real-time, starting with the Interna
 
 ## Project Status
 
-**Current Phase**: Step 1 - Basic ISS Tracking ✅ **COMPLETE** | Step 2 - Dashboard ✅ **COMPLETE** | Step 3 - Multi-Satellite Tracking ✅ **COMPLETE**
+**Current Phase**: Step 1 - Basic ISS Tracking ✅ | Step 2 - Dashboard ✅ | Step 3 - Multi-Satellite ✅ | **Step 4 - Cesium 3D Globe ✅ NEW**
 
 **Design Philosophy**: SatWatch uses deterministic physics (SGP4 propagation) for position calculations, not AI/ML. This ensures predictable, repeatable results for safety-critical satellite tracking. See [ARCHITECTURE.md](ARCHITECTURE.md) for details.
 
@@ -24,6 +24,8 @@ A Python project for tracking satellites in real-time, starting with the Interna
 - ✅ **Satellites Configuration** - JSON config file for tracked satellites
 - ✅ **Conjunction Risk Calculator** - Collision risk assessment between two satellites
 - ✅ **Focus Mode** - Toggle to highlight your tracked satellites with nearby objects as secondary
+- ✅ **Timeline Controls** - View satellite positions at any date/time (past or future)
+- ✅ **CesiumJS 3D Globe** - Professional WebGL visualization with time animation
 - ✅ **TESTED AND VERIFIED** - Core ISS tracking and dashboard successfully tested and working
 
 ### In Progress / Known Issues ⚠️
@@ -139,6 +141,31 @@ The dashboard provides:
 - Dark theme interface
 - Data source selection (local file or CelesTrak API)
 - Comprehensive debug information for troubleshooting
+
+### Option 6: CesiumJS 3D Globe Viewer 🆕
+
+Professional-grade 3D visualization using CesiumJS with time animation.
+
+```bash
+# 1. Export satellite positions (generates cesium/satellite-positions.json)
+python3 src/export_cesium_data.py --duration 120 --step 60
+
+# 2. Start a local web server
+cd cesium && python3 -m http.server 8080
+
+# 3. Open http://localhost:8080 in your browser
+```
+
+**Features:**
+- WebGL 3D globe with satellite imagery
+- Time-dynamic animation with play/pause/scrub
+- Color-coded objects (stations=red, satellites=blue, debris=orange)
+- Orbital path trails
+- Playback speed control (1x to 600x)
+
+See [cesium/README.md](cesium/README.md) for detailed documentation.
+
+---
 
 The scripts will:
 1. Load TLE data (from API or local file)

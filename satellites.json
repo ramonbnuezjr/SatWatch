@@ -14,6 +14,66 @@
       "name": "Tiangong Space Station",
       "catnr": 48274,
       "type": "station"
+    },
+    {
+      "name": "NOAA-20",
+      "catnr": 43013,
+      "type": "satellite"
+    },
+    {
+      "name": "Terra",
+      "catnr": 25994,
+      "type": "satellite"
+    },
+    {
+      "name": "Landsat 9",
+      "catnr": 49260,
+      "type": "satellite"
+    },
+    {
+      "name": "GOES-16",
+      "catnr": 41866,
+      "type": "satellite"
+    },
+    {
+      "name": "STARLINK-1007",
+      "catnr": 44713,
+      "type": "satellite"
+    },
+    {
+      "name": "STARLINK-1008",
+      "catnr": 44714,
+      "type": "satellite"
+    },
+    {
+      "name": "STARLINK-1009",
+      "catnr": 44715,
+      "type": "satellite"
+    },
+    {
+      "name": "STARLINK-1010",
+      "catnr": 44716,
+      "type": "satellite"
+    },
+    {
+      "name": "STARLINK-1011",
+      "catnr": 44717,
+      "type": "satellite"
+    },
+    {
+      "name": "COSMOS 2251 DEB",
+      "catnr": 34454,
+      "type": "debris"
+    },
+    {
+      "name": "COSMOS 1408 DEB",
+      "catnr": 51286,
+      "type": "debris"
+    },
+    {
+      "name": "FENGYUN 1C DEB",
+      "catnr": 31141,
+      "type": "debris"
     }
   ]
 }

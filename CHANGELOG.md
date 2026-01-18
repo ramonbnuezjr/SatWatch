@@ -4,6 +4,86 @@ This document tracks significant changes, improvements, and lessons learned duri
 
 ---
 
+## 2026-01-17 - UI Enhancements & Cesium Bridge MVP
+
+### ✅ Phase 1: Timeline with Datetime Picker (Dashboard)
+
+Added time controls to the Streamlit dashboard allowing users to view satellite positions at any point in time (past, present, or future).
+
+**Features:**
+- Live Mode toggle - switch between real-time and historical viewing
+- Date picker and time input for precise time selection
+- Quick navigation buttons (-1 hour / +1 hour)
+- "Go Live" button to return to real-time
+- Time context indicator showing how far in past/future
+- All position calculations respect selected time
+
+**Files Changed:**
+- `src/dashboard.py` - Added time controls, `calculate_position_at_time()` function
+- `ARCHITECTURE.md` - Added UI Enhancement Phases roadmap
+
+### ✅ Phase 1: Cesium Bridge MVP (3D Globe Visualization)
+
+Built a CesiumJS frontend for professional-grade 3D satellite visualization with time-dynamic animation.
+
+**Features:**
+- CesiumJS WebGL globe with ESRI World Imagery
+- Time-dynamic satellite positions using `SampledPositionProperty`
+- Play / pause / time scrub using Cesium Clock + Timeline
+- Color-coded objects: station (red), satellite (blue), debris (orange)
+- Orbital path trails (1-hour history)
+- Click objects for info panel
+- Playback speed control (1x to 600x)
+
+**Files Added:**
+- `cesium/index.html` - Main viewer HTML with controls
+- `cesium/satwatch-cesium.js` - Visualization module
+- `cesium/sample-data.json` - Sample test data
+- `cesium/README.md` - Cesium viewer documentation
+- `src/export_cesium_data.py` - Python script to export positions for Cesium
+
+**Data Contract:**
+```json
+{
+  "epoch": "2026-01-17T21:00:00Z",
+  "satellites": [
+    {
+      "id": "25544",
+      "name": "ISS",
+      "type": "station",
+      "positions": [
+        { "time": "...", "lat": 14.3, "lon": -96.5, "alt_km": 414 }
+      ]
+    }
+  ]
+}
+```
+
+### ✅ Realistic Earth Visualization (Dashboard)
+
+Updated the Plotly 3D Earth visualization with realistic appearance:
+- Approximate continental landmasses (color-coded)
+- Blue oceans with depth variation
+- White polar ice caps
+- Custom Earth colorscale
+- Proper lighting effects
+
+### 🔧 Technical Improvements
+
+- Fixed TLE fetching to use 3LE format for reliable TLE lines
+- Added async imagery provider initialization for CesiumJS 1.114+
+- Expanded tracked satellites configuration (15 objects)
+- Added ESRI World Imagery with OpenStreetMap fallback
+
+### 📚 Updated Satellites Configuration
+
+Added new tracked objects to `satellites.json`:
+- NOAA-20, Terra, Landsat 9, GOES-16 (Earth observation)
+- STARLINK-1008 (Starlink constellation)
+- COSMOS 2251 DEB (tracked debris)
+
+---
+
 ## 2025-01 - Initial Implementation & Testing
 
 ### ✅ Completed Features

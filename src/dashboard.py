@@ -30,6 +30,7 @@ from iss_tracker_json import (
 import requests
 import json
 from skyfield.api import load, EarthSatellite
+from pathlib import Path
 
 
 def fetch_satellites(catnr_list: list) -> list:
@@ -65,7 +66,43 @@ def fetch_satellites(catnr_list: list) -> list:
             }
             
             # Download the 3LE text data with timeout
-            response = requests.get(url, params=params, timeout=10)
+            # Add User-Agent header to avoid 403 errors
+            headers = {
+                'User-Agent': 'SatWatch/1.0 (Educational/Research Project)'
+            }
+            response = requests.get(url, params=params, timeout=10, headers=headers)
+            
+            # Handle 403 Forbidden errors
+            if response.status_code == 403:
+                # Try JSON format as fallback
+                params_json = params.copy()
+                params_json['FORMAT'] = 'json'
+                response_json = requests.get(url, params=params_json, timeout=10, headers=headers)
+                if response_json.status_code == 200:
+                    # Parse JSON response
+                    json_data = response_json.json()
+                    if json_data and len(json_data) > 0:
+                        sat_data = json_data[0]
+                        # Extract TLE lines if available
+                        tle_line1 = sat_data.get('TLE_LINE1', '')
+                        tle_line2 = sat_data.get('TLE_LINE2', '')
+                        if tle_line1 and tle_line2:
+                            name_line = sat_data.get('OBJECT_NAME', 'Unknown')
+                            # Create satellite data in same format as 3LE
+                            satellite_data = {
+                                'OBJECT_NAME': name_line,
+                                'TLE_LINE1': tle_line1,
+                                'TLE_LINE2': tle_line2,
+                                'NORAD_CAT_ID': str(catnr),
+                                'OBJECT_ID': str(catnr)
+                            }
+                            satellites.append(satellite_data)
+                            continue
+                
+                # If both formats fail, show warning but don't stop
+                st.warning(f"⚠️ Satellite {catnr} returned 403 Forbidden. This satellite may not be available in CelesTrak database or access may be restricted. Skipping this satellite.")
+                continue
+            
             response.raise_for_status()  # Raise an error if download failed
             
             # Check if response has content
@@ -111,9 +148,21 @@ def fetch_satellites(catnr_list: list) -> list:
             
             satellites.append(satellite_data)
                 
+        except requests.HTTPError as e:
+            # Handle HTTP errors (including 403)
+            if e.response and e.response.status_code == 403:
+                st.warning(f"⚠️  Satellite {catnr} access forbidden (403). This satellite may not be publicly available in CelesTrak or may require authentication.")
+            else:
+                status_code = e.response.status_code if e.response else "Unknown"
+                st.warning(f"⚠️  Failed to fetch satellite {catnr}: HTTP {status_code} - {e}")
+            continue
         except requests.RequestException as e:
             # Network error - log but continue with other satellites
-            st.warning(f"Failed to fetch satellite {catnr}: Network error - {e}")
+            # Check if it's a 403 error in the message
+            if "403" in str(e) or "Forbidden" in str(e):
+                st.warning(f"⚠️  Satellite {catnr} access forbidden (403). This satellite may not be publicly available in CelesTrak or may require authentication.")
+            else:
+                st.warning(f"⚠️  Failed to fetch satellite {catnr}: Network error - {e}")
             continue
         except Exception as e:
             # Any other error - log but continue
@@ -158,12 +207,54 @@ def load_satellites_config(file_path: str = None) -> dict:
     return config
 
 
-def get_iss_data(use_local: bool = True):
+def calculate_position_at_time(satellite: EarthSatellite, target_time: datetime) -> dict:
     """
-    Get ISS TLE data and calculate current position.
+    Calculate satellite position at a specific time.
+    
+    This function calculates the satellite's position at any given time,
+    enabling historical and future position viewing.
+    
+    Args:
+        satellite: Skyfield EarthSatellite object
+        target_time: datetime object (timezone-aware, UTC) for the desired time
+        
+    Returns:
+        dict: Dictionary containing latitude, longitude, altitude, and timestamp
+    """
+    from skyfield.api import load
+    
+    # Load the timescale
+    ts = load.timescale()
+    
+    # Convert datetime to Skyfield time
+    skyfield_time = ts.from_datetime(target_time)
+    
+    # Calculate the satellite's position at the target time
+    geocentric = satellite.at(skyfield_time)
+    
+    # Convert to geographic coordinates
+    subpoint = geocentric.subpoint()
+    
+    # Extract the values
+    latitude = subpoint.latitude.degrees
+    longitude = subpoint.longitude.degrees
+    altitude = subpoint.elevation.km
+    
+    return {
+        'latitude': latitude,
+        'longitude': longitude,
+        'altitude': altitude,
+        'timestamp': target_time.strftime('%Y-%m-%d %H:%M:%S UTC')
+    }
+
+
+def get_iss_data(use_local: bool = True, target_time: datetime = None):
+    """
+    Get ISS TLE data and calculate position at specified time.
     
     Args:
         use_local: If True, use local JSON file; if False, download from API
+        target_time: If provided, calculate position at this time; if None, use current time
         
     Returns:
         tuple: (position_dict, json_data, error_message)
@@ -177,7 +268,12 @@ def get_iss_data(use_local: bool = True):
         
         # Parse TLE and calculate position
         satellite = parse_tle_from_json(json_data)
-        position = calculate_iss_position(satellite)
+        
+        # Calculate position at specified time or current time
+        if target_time is not None:
+            position = calculate_position_at_time(satellite, target_time)
+        else:
+            position = calculate_iss_position(satellite)
         
         return position, json_data, None
         
@@ -285,6 +381,61 @@ def calculate_satellite_positions(satellites_data: list, current_time: datetime)
             continue
     
     return positions
+
+
+def load_conjunction_results() -> dict:
+    """
+    Load conjunction monitoring results from JSON file.
+    
+    Returns:
+        dict: Conjunction results with timestamp and results list, or None if file doesn't exist
+    """
+    project_root = Path(__file__).parent.parent
+    results_file = project_root / 'data' / 'conjunction_results.json'
+    
+    try:
+        if results_file.exists():
+            with open(results_file, 'r', encoding='utf-8') as f:
+                return json.load(f)
+    except Exception as e:
+        st.warning(f"Could not load conjunction results: {e}")
+    
+    return None
+
+
+def get_satellite_risks(conjunction_results: dict, catnr: int, sat_name: str) -> list:
+    """
+    Get all conjunction risks for a specific satellite.
+    
+    Args:
+        conjunction_results: Conjunction results dictionary
+        catnr: Catalog number of the satellite
+        sat_name: Name of the satellite
+        
+    Returns:
+        list: List of risk dictionaries for this satellite
+    """
+    if not conjunction_results or 'results' not in conjunction_results:
+        return []
+    
+    risks = []
+    for result in conjunction_results['results']:
+        # Check if this satellite is involved in this conjunction
+        sat1_name = result.get('sat1_name', '')
+        sat2_name = result.get('sat2_name', '')
+        
+        if sat_name in sat1_name or sat_name in sat2_name:
+            # Determine the other satellite
+            other_sat = sat2_name if sat_name in sat1_name else sat1_name
+            risks.append({
+                'risk_level': result.get('risk_level', 'NORMAL'),
+                'distance_km': result.get('min_distance_km', 0),
+                'time': result.get('min_distance_time', ''),
+                'other_satellite': other_sat,
+                'position_at_closest': result.get('sat1_position_at_closest' if sat_name in sat1_name else 'sat2_position_at_closest', {})
+            })
+    
+    return risks
 
 
 def calculate_tracked_satellite_positions(tracked_satellites: list, satellites_tle_data: dict, current_time: datetime):
@@ -644,14 +795,14 @@ def calculate_orbit_path(satellite, start_datetime, duration_minutes: int = 90, 
 
 def create_earth_sphere(earth_radius: float = 6371.0, resolution: int = 50):
     """
-    Create a 3D sphere representing Earth.
+    Create a 3D sphere representing Earth with realistic coloring.
     
     Args:
         earth_radius: Earth radius in kilometers
         resolution: Number of points for sphere resolution
         
     Returns:
-        tuple: (x, y, z) arrays for sphere surface
+        tuple: (x, y, z, colors) arrays for sphere surface with color data
     """
     # Create sphere using spherical coordinates
     theta = np.linspace(0, 2 * np.pi, resolution)  # Longitude
@@ -664,7 +815,76 @@ def create_earth_sphere(earth_radius: float = 6371.0, resolution: int = 50):
     y = earth_radius * np.sin(phi) * np.sin(theta)
     z = earth_radius * np.cos(phi)
     
-    return x, y, z
+    # Create realistic Earth coloring based on latitude/longitude patterns
+    # This creates an approximation of Earth's appearance
+    colors = np.zeros_like(phi)
+    
+    # Convert phi to latitude (-90 to 90) and theta to longitude (-180 to 180)
+    lat = 90 - np.degrees(phi)  # phi=0 is north pole, phi=pi is south pole
+    lon = np.degrees(theta) - 180  # Center on prime meridian
+    
+    # Base ocean color (value ~0.3 for blue)
+    colors[:] = 0.3
+    
+    # Approximate continental patterns
+    # North America (lat 25-70, lon -170 to -50)
+    na_mask = (lat > 25) & (lat < 70) & (lon > -170) & (lon < -50)
+    colors[na_mask] = 0.55
+    
+    # South America (lat -55 to 15, lon -80 to -35)
+    sa_mask = (lat > -55) & (lat < 15) & (lon > -80) & (lon < -35)
+    colors[sa_mask] = 0.5
+    
+    # Europe (lat 35-70, lon -10 to 40)
+    eu_mask = (lat > 35) & (lat < 70) & (lon > -10) & (lon < 40)
+    colors[eu_mask] = 0.55
+    
+    # Africa (lat -35 to 37, lon -20 to 55)
+    af_mask = (lat > -35) & (lat < 37) & (lon > -20) & (lon < 55)
+    colors[af_mask] = 0.6
+    
+    # Asia (lat 5-75, lon 40 to 180)
+    as_mask = (lat > 5) & (lat < 75) & (lon > 40) & (lon < 180)
+    colors[as_mask] = 0.55
+    
+    # Australia (lat -45 to -10, lon 110 to 155)
+    au_mask = (lat > -45) & (lat < -10) & (lon > 110) & (lon < 155)
+    colors[au_mask] = 0.6
+    
+    # Antarctica (lat < -60)
+    ant_mask = lat < -60
+    colors[ant_mask] = 0.95
+    
+    # Arctic ice (lat > 75)
+    arc_mask = lat > 75
+    colors[arc_mask] = 0.9
+    
+    # Add some variation/noise for texture
+    noise = np.random.uniform(-0.05, 0.05, colors.shape)
+    colors = np.clip(colors + noise, 0, 1)
+    
+    return x, y, z, colors
+
+
+def get_earth_colorscale():
+    """
+    Return a custom colorscale for realistic Earth rendering.
+    
+    Returns:
+        list: Plotly colorscale for Earth visualization
+    """
+    return [
+        [0.0, 'rgb(10, 30, 60)'],      # Deep ocean (dark blue)
+        [0.25, 'rgb(30, 80, 140)'],    # Ocean (medium blue)
+        [0.35, 'rgb(50, 120, 180)'],   # Shallow water (light blue)
+        [0.45, 'rgb(80, 120, 80)'],    # Coastal/lowland (green)
+        [0.55, 'rgb(100, 140, 80)'],   # Plains (light green)
+        [0.65, 'rgb(140, 130, 90)'],   # Highland (tan)
+        [0.75, 'rgb(120, 100, 70)'],   # Mountains (brown)
+        [0.85, 'rgb(180, 180, 180)'],  # Snow/high altitude (light gray)
+        [0.95, 'rgb(240, 245, 255)'],  # Ice caps (white)
+        [1.0, 'rgb(255, 255, 255)'],   # Bright ice (pure white)
+    ]
 
 
 def create_3d_tracked_satellites_plot(
@@ -677,7 +897,9 @@ def create_3d_tracked_satellites_plot(
     show_satellites: bool = True,
     show_debris: bool = True,
     proximity_radius_km: float = 1000.0,
-    focus_mode: bool = False
+    focus_mode: bool = False,
+    conjunction_results: dict = None,
+    satellite_visibility: dict = None
 ):
     """
     Create a 3D Plotly plot showing Earth, ISS, and tracked satellites with color coding.
@@ -720,8 +942,8 @@ def create_3d_tracked_satellites_plot(
     # Calculate ISS orbit path for next 90 minutes
     orbit_path = calculate_orbit_path(iss_satellite, current_time, duration_minutes=90, step_minutes=2)
     
-    # Create Earth sphere
-    earth_x, earth_y, earth_z = create_earth_sphere(earth_radius)
+    # Create Earth sphere with realistic colors
+    earth_x, earth_y, earth_z, earth_colors = create_earth_sphere(earth_radius, resolution=80)
     
     # Calculate positions for all tracked satellites
     all_sat_positions = calculate_tracked_satellite_positions(
@@ -758,6 +980,11 @@ def create_3d_tracked_satellites_plot(
     for x, y, z, name, alt, sat_type, catnr, lat, lon in all_sat_positions:
         if math.isnan(x) or math.isnan(y) or math.isnan(z):
             continue
+        
+        # Check visibility - skip if satellite is hidden
+        if satellite_visibility and catnr in satellite_visibility:
+            if not satellite_visibility[catnr]:
+                continue
         
         is_tracked = catnr in tracked_catnrs
         
@@ -856,15 +1083,24 @@ def create_3d_tracked_satellites_plot(
     # Create the 3D plot
     fig = go.Figure()
     
-    # Add Earth sphere (semi-transparent gray)
+    # Add Earth sphere with realistic coloring
     fig.add_trace(go.Surface(
         x=earth_x,
         y=earth_y,
         z=earth_z,
-        colorscale='Greys',
+        surfacecolor=earth_colors,
+        colorscale=get_earth_colorscale(),
         showscale=False,
-        opacity=0.3,
-        name='Earth'
+        opacity=1.0,
+        name='Earth',
+        lighting=dict(
+            ambient=0.6,
+            diffuse=0.8,
+            specular=0.2,
+            roughness=0.9,
+            fresnel=0.1
+        ),
+        lightposition=dict(x=10000, y=10000, z=10000)
     ))
     
     # Add ISS orbit path
@@ -883,6 +1119,37 @@ def create_3d_tracked_satellites_plot(
             hovertemplate='Orbit Path<extra></extra>'
         ))
     
+    # Build risk map for satellites
+    risk_map = {}  # catnr -> highest risk level
+    conjunction_pairs = []  # List of (sat1_catnr, sat2_catnr, risk_level, distance)
+    
+    if conjunction_results and 'results' in conjunction_results:
+        for result in conjunction_results['results']:
+            sat1_name = result.get('sat1_name', '')
+            sat2_name = result.get('sat2_name', '')
+            risk_level = result.get('risk_level', 'NORMAL')
+            distance = result.get('min_distance_km', 0)
+            
+            # Find catalog numbers for these satellites
+            sat1_catnr = None
+            sat2_catnr = None
+            for sat in tracked_satellites:
+                if sat['name'] in sat1_name or sat1_name in sat['name']:
+                    sat1_catnr = sat['catnr']
+                if sat['name'] in sat2_name or sat2_name in sat['name']:
+                    sat2_catnr = sat['catnr']
+            
+            if sat1_catnr and sat2_catnr:
+                # Update risk map
+                for catnr in [sat1_catnr, sat2_catnr]:
+                    current_risk = risk_map.get(catnr, 'NORMAL')
+                    risk_priority = {'CRITICAL': 2, 'HIGH RISK': 1, 'NORMAL': 0}
+                    if risk_priority.get(risk_level, 0) > risk_priority.get(current_risk, 0):
+                        risk_map[catnr] = risk_level
+                
+                # Store conjunction pair
+                conjunction_pairs.append((sat1_catnr, sat2_catnr, risk_level, distance))
+    
     # Determine marker sizes based on focus mode
     if focus_mode:
         # Focus mode: Larger, brighter markers for tracked satellites
@@ -897,26 +1164,124 @@ def create_3d_tracked_satellites_plot(
         secondary_marker_size = 4
         secondary_opacity = 0.5
     
+    # Helper function to get marker color and glow based on risk
+    def get_marker_style(catnr, base_color, base_size):
+        risk = risk_map.get(catnr, 'NORMAL')
+        if risk == 'CRITICAL':
+            # Red pulsing glow effect (larger size, red color)
+            return {
+                'size': base_size * 1.5,
+                'color': 'red',
+                'symbol': 'circle',
+                'line': dict(width=primary_line_width * 2, color='darkred'),
+                'opacity': 1.0
+            }
+        elif risk == 'HIGH RISK':
+            # Orange highlight
+            return {
+                'size': base_size * 1.2,
+                'color': 'orange',
+                'symbol': 'circle',
+                'line': dict(width=primary_line_width * 1.5, color='darkorange'),
+                'opacity': 1.0
+            }
+        else:
+            return {
+                'size': base_size,
+                'color': base_color,
+                'symbol': 'circle',
+                'line': dict(width=primary_line_width, color=f'dark{base_color}' if base_color != 'gray' else 'darkgray'),
+                'opacity': 1.0
+            }
+    
     # Add primary stations (red) - tracked satellites in focus mode, or all in normal mode
+    # Separate by risk level for different styling
     if primary_stations_data['x']:
-        fig.add_trace(go.Scatter3d(
-            x=primary_stations_data['x'],
-            y=primary_stations_data['y'],
-            z=primary_stations_data['z'],
-            mode='markers+text' if focus_mode else 'markers',
-            marker=dict(
-                size=primary_marker_size,
-                color='red',
-                symbol='circle',
-                line=dict(width=primary_line_width, color='darkred'),
-                opacity=1.0
-            ),
-            text=[name.split('<br>')[0] for name in primary_stations_data['names']] if focus_mode else None,
-            textposition='top center' if focus_mode else None,
-            name='My Stations' if focus_mode else 'Stations',
-            hovertemplate='%{customdata[0]}<extra></extra>',
-            customdata=[[name] for name in primary_stations_data['names']]
-        ))
+        # Group by risk level
+        critical_stations = {'x': [], 'y': [], 'z': [], 'names': []}
+        high_risk_stations = {'x': [], 'y': [], 'z': [], 'names': []}
+        normal_stations = {'x': [], 'y': [], 'z': [], 'names': []}
+        
+        for i, catnr in enumerate(primary_stations_data['catnrs']):
+            risk = risk_map.get(catnr, 'NORMAL')
+            if risk == 'CRITICAL':
+                critical_stations['x'].append(primary_stations_data['x'][i])
+                critical_stations['y'].append(primary_stations_data['y'][i])
+                critical_stations['z'].append(primary_stations_data['z'][i])
+                critical_stations['names'].append(primary_stations_data['names'][i])
+            elif risk == 'HIGH RISK':
+                high_risk_stations['x'].append(primary_stations_data['x'][i])
+                high_risk_stations['y'].append(primary_stations_data['y'][i])
+                high_risk_stations['z'].append(primary_stations_data['z'][i])
+                high_risk_stations['names'].append(primary_stations_data['names'][i])
+            else:
+                normal_stations['x'].append(primary_stations_data['x'][i])
+                normal_stations['y'].append(primary_stations_data['y'][i])
+                normal_stations['z'].append(primary_stations_data['z'][i])
+                normal_stations['names'].append(primary_stations_data['names'][i])
+        
+        # Add CRITICAL risk stations (red, larger, pulsing effect)
+        if critical_stations['x']:
+            fig.add_trace(go.Scatter3d(
+                x=critical_stations['x'],
+                y=critical_stations['y'],
+                z=critical_stations['z'],
+                mode='markers+text' if focus_mode else 'markers',
+                marker=dict(
+                    size=primary_marker_size * 1.5,
+                    color='red',
+                    symbol='circle',
+                    line=dict(width=primary_line_width * 2, color='darkred'),
+                    opacity=1.0
+                ),
+                text=[name.split('<br>')[0] for name in critical_stations['names']] if focus_mode else None,
+                textposition='top center' if focus_mode else None,
+                name='🚨 CRITICAL RISK Stations',
+                hovertemplate='%{customdata[0]}<extra></extra>',
+                customdata=[[name] for name in critical_stations['names']]
+            ))
+        
+        # Add HIGH RISK stations (orange, larger)
+        if high_risk_stations['x']:
+            fig.add_trace(go.Scatter3d(
+                x=high_risk_stations['x'],
+                y=high_risk_stations['y'],
+                z=high_risk_stations['z'],
+                mode='markers+text' if focus_mode else 'markers',
+                marker=dict(
+                    size=primary_marker_size * 1.2,
+                    color='orange',
+                    symbol='circle',
+                    line=dict(width=primary_line_width * 1.5, color='darkorange'),
+                    opacity=1.0
+                ),
+                text=[name.split('<br>')[0] for name in high_risk_stations['names']] if focus_mode else None,
+                textposition='top center' if focus_mode else None,
+                name='⚠️ HIGH RISK Stations',
+                hovertemplate='%{customdata[0]}<extra></extra>',
+                customdata=[[name] for name in high_risk_stations['names']]
+            ))
+        
+        # Add normal stations
+        if normal_stations['x']:
+            fig.add_trace(go.Scatter3d(
+                x=normal_stations['x'],
+                y=normal_stations['y'],
+                z=normal_stations['z'],
+                mode='markers+text' if focus_mode else 'markers',
+                marker=dict(
+                    size=primary_marker_size,
+                    color='red',
+                    symbol='circle',
+                    line=dict(width=primary_line_width, color='darkred'),
+                    opacity=1.0
+                ),
+                text=[name.split('<br>')[0] for name in normal_stations['names']] if focus_mode else None,
+                textposition='top center' if focus_mode else None,
+                name='My Stations' if focus_mode else 'Stations',
+                hovertemplate='%{customdata[0]}<extra></extra>',
+                customdata=[[name] for name in normal_stations['names']]
+            ))
     
     # Add primary satellites (blue)
     if primary_satellites_data['x']:
@@ -999,6 +1364,43 @@ def create_3d_tracked_satellites_plot(
         hovertemplate=f'ISS<br>Lat: {iss_position["latitude"]:.2f}°<br>Lon: {iss_position["longitude"]:.2f}°<br>Alt: {iss_position["altitude"]:.2f} km<extra></extra>'
     ))
     
+    # Add conjunction lines between pairs
+    if conjunction_pairs and all_sat_positions:
+        # Build position map
+        pos_map = {}
+        for sat_pos in all_sat_positions:
+            x, y, z, name, alt, sat_type, catnr, lat, lon = sat_pos
+            if not (math.isnan(x) or math.isnan(y) or math.isnan(z)):
+                pos_map[catnr] = (x, y, z)
+        
+        # Draw lines for each conjunction pair
+        for sat1_catnr, sat2_catnr, risk_level, distance in conjunction_pairs:
+            if sat1_catnr in pos_map and sat2_catnr in pos_map:
+                pos1 = pos_map[sat1_catnr]
+                pos2 = pos_map[sat2_catnr]
+                
+                # Determine line color based on risk
+                if risk_level == 'CRITICAL':
+                    line_color = 'red'
+                    line_width = 3
+                elif risk_level == 'HIGH RISK':
+                    line_color = 'orange'
+                    line_width = 2
+                else:
+                    line_color = 'yellow'
+                    line_width = 1
+                
+                fig.add_trace(go.Scatter3d(
+                    x=[pos1[0], pos2[0]],
+                    y=[pos1[1], pos2[1]],
+                    z=[pos1[2], pos2[2]],
+                    mode='lines',
+                    line=dict(color=line_color, width=line_width, dash='dash'),
+                    name=f'Conjunction: {risk_level}',
+                    showlegend=False,
+                    hovertemplate=f'{risk_level} Risk<br>Distance: {distance:.3f} km<extra></extra>'
+                ))
+    
     # Set camera angle and layout
     axis_range = max(15000, proximity_radius_km * 2)  # Dynamic range based on proximity
     
@@ -1061,21 +1463,30 @@ def create_3d_orbit_plot(position: dict, satellite, current_time, show_orbital_s
     
     orbit_path = calculate_orbit_path(satellite, current_time, duration_minutes=90, step_minutes=2)
     
-    # Create Earth sphere
-    earth_x, earth_y, earth_z = create_earth_sphere(earth_radius)
+    # Create Earth sphere with realistic colors
+    earth_x, earth_y, earth_z, earth_colors = create_earth_sphere(earth_radius, resolution=80)
     
     # Create the 3D plot
     fig = go.Figure()
     
-    # Add Earth sphere (semi-transparent gray)
+    # Add Earth sphere with realistic coloring
     fig.add_trace(go.Surface(
         x=earth_x,
         y=earth_y,
         z=earth_z,
-        colorscale='Greys',
+        surfacecolor=earth_colors,
+        colorscale=get_earth_colorscale(),
         showscale=False,
-        opacity=0.3,
-        name='Earth'
+        opacity=1.0,
+        name='Earth',
+        lighting=dict(
+            ambient=0.6,
+            diffuse=0.8,
+            specular=0.2,
+            roughness=0.9,
+            fresnel=0.1
+        ),
+        lightposition=dict(x=10000, y=10000, z=10000)
     ))
     
     # Add orbital shell (multiple satellites) if enabled
@@ -1222,9 +1633,44 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# Title
-st.title("🛰️ SatWatch - ISS Tracker")
+# Top Header Bar (matching reference images)
+header_col1, header_col2, header_col3 = st.columns([1, 3, 1])
+with header_col1:
+    st.markdown("### 🛰️ **SatWatch**")
+with header_col2:
+    # Navigation tabs (placeholder for future expansion)
+    nav_tabs = st.tabs(["Explore", "Analytics", "Settings"])
+with header_col3:
+    # Status indicators
+    st.caption("🟢 Live")
 st.markdown("---")
+
+# Initialize time session state BEFORE sidebar (so it's available for data loading)
+if 'live_mode' not in st.session_state:
+    st.session_state.live_mode = True
+if 'selected_date' not in st.session_state:
+    st.session_state.selected_date = datetime.now(timezone.utc).date()
+if 'selected_hour' not in st.session_state:
+    st.session_state.selected_hour = datetime.now(timezone.utc).hour
+if 'selected_minute' not in st.session_state:
+    st.session_state.selected_minute = datetime.now(timezone.utc).minute
+
+# Calculate the target time based on session state
+if st.session_state.live_mode:
+    target_time = datetime.now(timezone.utc)
+else:
+    target_time = datetime(
+        year=st.session_state.selected_date.year,
+        month=st.session_state.selected_date.month,
+        day=st.session_state.selected_date.day,
+        hour=st.session_state.selected_hour,
+        minute=st.session_state.selected_minute,
+        second=0,
+        tzinfo=timezone.utc
+    )
+
+# Store in session state for other components
+st.session_state.selected_time = target_time
 
 # Sidebar
 with st.sidebar:
@@ -1238,8 +1684,8 @@ with st.sidebar:
         help="Choose to use local JSON file or download fresh data from CelesTrak"
     )
     
-    # Get ISS data
-    position, json_data, error = get_iss_data(use_local=(use_local == "Local File"))
+    # Get ISS data (pass target_time for position calculation)
+    position, json_data, error = get_iss_data(use_local=(use_local == "Local File"), target_time=target_time)
     
     if error:
         st.error(f"❌ Error: {error}")
@@ -1338,10 +1784,100 @@ with st.sidebar:
             # Clear session state if no tracked satellites
             st.session_state.tracked_satellites = []
             st.session_state.satellites_tle_data = {}
-        # Current time
-        current_time = datetime.now(timezone.utc)
-        st.metric("Current Time (UTC)", current_time.strftime("%H:%M:%S"))
-        st.caption(f"Date: {current_time.strftime('%Y-%m-%d')}")
+        # ========================================
+        # TIME CONTROLS (UI Phase 1)
+        # ========================================
+        st.subheader("⏱️ Time Controls")
+        
+        # Live mode toggle (session state already initialized before sidebar)
+        live_mode = st.toggle(
+            "🟢 LIVE MODE",
+            value=st.session_state.live_mode,
+            help="When enabled, shows real-time satellite positions. Disable to view positions at any date/time."
+        )
+        
+        # Check if live mode changed
+        if live_mode != st.session_state.live_mode:
+            st.session_state.live_mode = live_mode
+            st.rerun()  # Rerun to recalculate positions with new time
+        
+        if live_mode:
+            # Live mode - show current time
+            st.success(f"**🟢 LIVE** - {target_time.strftime('%Y-%m-%d %H:%M:%S')} UTC")
+        else:
+            # Historical/Future mode - show date/time pickers
+            st.warning("**📅 VIEWING SELECTED TIME** - Not live data")
+            
+            # Date picker
+            selected_date = st.date_input(
+                "Select Date",
+                value=st.session_state.selected_date,
+                help="Choose a date to view satellite positions"
+            )
+            
+            # Time picker using columns for hour and minute
+            time_col1, time_col2 = st.columns(2)
+            with time_col1:
+                selected_hour = st.number_input(
+                    "Hour (UTC)",
+                    min_value=0,
+                    max_value=23,
+                    value=st.session_state.selected_hour,
+                    help="Hour in UTC (0-23)"
+                )
+            with time_col2:
+                selected_minute = st.number_input(
+                    "Minute",
+                    min_value=0,
+                    max_value=59,
+                    value=st.session_state.selected_minute,
+                    help="Minute (0-59)"
+                )
+            
+            # Check if date/time changed and rerun if needed
+            time_changed = (
+                selected_date != st.session_state.selected_date or
+                selected_hour != st.session_state.selected_hour or
+                selected_minute != st.session_state.selected_minute
+            )
+            
+            if time_changed:
+                st.session_state.selected_date = selected_date
+                st.session_state.selected_hour = selected_hour
+                st.session_state.selected_minute = selected_minute
+                st.rerun()  # Rerun to recalculate positions with new time
+            
+            # Show selected time prominently
+            st.info(f"**Viewing:** {target_time.strftime('%Y-%m-%d %H:%M:%S')} UTC")
+            
+            # Quick time navigation buttons
+            nav_col1, nav_col2, nav_col3 = st.columns(3)
+            with nav_col1:
+                if st.button("◀ -1 Hour", use_container_width=True):
+                    new_time = target_time - timedelta(hours=1)
+                    st.session_state.selected_date = new_time.date()
+                    st.session_state.selected_hour = new_time.hour
+                    st.session_state.selected_minute = new_time.minute
+                    st.rerun()
+            with nav_col2:
+                if st.button("🔴 Go Live", use_container_width=True, type="primary"):
+                    st.session_state.live_mode = True
+                    st.rerun()
+            with nav_col3:
+                if st.button("+1 Hour ▶", use_container_width=True):
+                    new_time = target_time + timedelta(hours=1)
+                    st.session_state.selected_date = new_time.date()
+                    st.session_state.selected_hour = new_time.hour
+                    st.session_state.selected_minute = new_time.minute
+                    st.rerun()
+            
+            # Show time difference from now
+            now = datetime.now(timezone.utc)
+            time_diff = target_time - now
+            if time_diff.total_seconds() > 0:
+                st.caption(f"🔮 Viewing {abs(time_diff.days)} days, {abs(time_diff.seconds // 3600)} hours into the **future**")
+            else:
+                st.caption(f"📜 Viewing {abs(time_diff.days)} days, {abs(time_diff.seconds // 3600)} hours into the **past**")
         
         st.markdown("---")
         
@@ -1385,61 +1921,210 @@ with st.sidebar:
         
         st.markdown("---")
         
-        # Multi-Satellite Tracking Filters
+        # SEARCH SECTION (matching reference images)
+        st.subheader("🔍 SEARCH")
+        search_query = st.text_input(
+            "Search our space catalog",
+            value=st.session_state.get('search_query', ''),
+            key='search_input',
+            placeholder="Search by name or NORAD ID..."
+        )
+        st.session_state.search_query = search_query
+        
+        # Filter satellites based on search
+        filtered_satellites = tracked_satellites
+        if search_query:
+            query_lower = search_query.lower()
+            filtered_satellites = [
+                sat for sat in tracked_satellites
+                if query_lower in sat['name'].lower() or str(sat['catnr']) == search_query
+            ]
+        
+        # "My Satellites" quick filter button
+        watched_satellites = st.session_state.get('watched_satellites', [])
+        if watched_satellites:
+            if st.button("⭐ My Satellites", key="my_satellites_btn", use_container_width=True, type="primary"):
+                # Filter to only watched satellites
+                filtered_satellites = [sat for sat in tracked_satellites if sat['catnr'] in watched_satellites]
+                st.session_state.search_query = ""  # Clear search when using this filter
+                st.rerun()
+        
+        st.markdown("---")
+        
+        # SPACE OBJECTS SECTION (expandable, matching reference images)
         if tracked_satellites:
-            st.subheader("🔍 Multi-Satellite Filters")
-            
-            # Type filters (checkboxes)
-            show_stations = st.checkbox(
-                "Show Stations",
-                value=st.session_state.get('show_stations', True),
-                help="Display space stations (red)",
-                key='show_stations_checkbox'
-            )
-            st.session_state.show_stations = show_stations
-            
-            show_satellites = st.checkbox(
-                "Show Satellites",
-                value=st.session_state.get('show_satellites', True),
-                help="Display operational satellites (blue)",
-                key='show_satellites_checkbox'
-            )
-            st.session_state.show_satellites = show_satellites
-            
-            show_debris = st.checkbox(
-                "Show Debris",
-                value=st.session_state.get('show_debris', True),
-                help="Display space debris (orange)",
-                key='show_debris_checkbox'
-            )
-            st.session_state.show_debris = show_debris
-            
-            st.markdown("---")
-            
-            # Proximity radius slider
-            proximity_radius = st.slider(
-                "Proximity Radius (km)",
-                min_value=100,
-                max_value=5000,
-                value=st.session_state.get('proximity_radius', 1000),
-                step=100,
-                help="Show objects within this distance from ISS",
-                key='proximity_radius_slider'
-            )
-            st.session_state.proximity_radius = proximity_radius
-            
-            st.caption(f"Tracking {len(tracked_satellites)} satellites")
-            
-            st.markdown("---")
-            
-            # Focus Mode toggle
-            focus_mode = st.checkbox(
-                "Focus on my satellites",
-                value=st.session_state.get('focus_mode', False),
-                help="When ON: Show your tracked satellites prominently with nearby objects as secondary. When OFF: Show all objects equally.",
-                key='focus_mode_checkbox'
-            )
-            st.session_state.focus_mode = focus_mode
+            with st.expander("🛰️ Space Objects", expanded=True):
+                # Toggle to show/hide all space objects
+                show_space_objects = st.toggle(
+                    "Show Space Objects",
+                    value=st.session_state.get('show_space_objects', True),
+                    key='show_space_objects_toggle'
+                )
+                st.session_state.show_space_objects = show_space_objects
+                
+                # Filter to starred only checkbox
+                show_starred_only = st.checkbox(
+                    "Show Starred Space Objects Only",
+                    value=st.session_state.get('show_starred_only', False),
+                    key='show_starred_only_checkbox'
+                )
+                st.session_state.show_starred_only = show_starred_only
+                
+                # Initialize visibility state if not exists
+                if 'satellite_visibility' not in st.session_state:
+                    st.session_state.satellite_visibility = {sat['catnr']: True for sat in tracked_satellites}
+                
+                # Load conjunction results for risk indicators
+                conjunction_results = load_conjunction_results()
+                
+                # Display filtered satellites
+                display_satellites = filtered_satellites
+                if show_starred_only:
+                    display_satellites = [sat for sat in display_satellites if sat['catnr'] in watched_satellites]
+                
+                if display_satellites and show_space_objects:
+                    for sat in display_satellites:
+                        catnr = sat['catnr']
+                        name = sat['name']
+                        sat_type = sat.get('type', 'satellite')
+                        
+                        # Check if selected
+                        is_selected = st.session_state.get('selected_satellite') == catnr
+                        is_watched = catnr in watched_satellites
+                        is_visible = st.session_state.satellite_visibility.get(catnr, True)
+                        
+                        # Get risk indicator
+                        risks = get_satellite_risks(conjunction_results, catnr, name)
+                        risk_indicator = "🟢"
+                        if risks:
+                            max_risk = max([r['risk_level'] for r in risks], key=lambda x: {'CRITICAL': 2, 'HIGH RISK': 1, 'NORMAL': 0}.get(x, 0))
+                            if max_risk == 'CRITICAL':
+                                risk_indicator = "🔴"
+                            elif max_risk == 'HIGH RISK':
+                                risk_indicator = "🟠"
+                        
+                        # Create columns for satellite entry
+                        col1, col2, col3, col4 = st.columns([1, 3, 1, 1])
+                        
+                        with col1:
+                            # Eye icon for visibility toggle
+                            visibility_icon = "👁️" if is_visible else "👁️‍🗨️"
+                            if st.button(visibility_icon, key=f"vis_{catnr}", help="Toggle visibility"):
+                                st.session_state.satellite_visibility[catnr] = not is_visible
+                                st.rerun()
+                        
+                        with col2:
+                            # Satellite name (clickable to select)
+                            button_style = "primary" if is_selected else "secondary"
+                            if st.button(name, key=f"select_{catnr}", use_container_width=True, type=button_style):
+                                st.session_state.selected_satellite = catnr
+                                st.rerun()
+                        
+                        with col3:
+                            # Star icon for watch/unwatch
+                            star_icon = "⭐" if is_watched else "☆"
+                            if st.button(star_icon, key=f"star_{catnr}", help="Add to watched list"):
+                                watched = st.session_state.get('watched_satellites', [])
+                                if is_watched:
+                                    watched.remove(catnr)
+                                else:
+                                    if catnr not in watched:
+                                        watched.append(catnr)
+                                st.session_state.watched_satellites = watched
+                                st.rerun()
+                        
+                        with col4:
+                            # Risk indicator
+                            st.markdown(risk_indicator)
+                
+                elif not display_satellites:
+                    st.caption("No satellites match your search.")
+                elif not show_space_objects:
+                    st.caption("Space objects are hidden.")
+        
+        st.markdown("---")
+        
+        # WATCHED SATELLITES LIST (compact version)
+        if watched_satellites:
+            with st.expander("⭐ My Satellites", expanded=False):
+                for watched_catnr in watched_satellites:
+                    sat_info = None
+                    for sat in tracked_satellites:
+                        if sat['catnr'] == watched_catnr:
+                            sat_info = sat
+                            break
+                    
+                    if sat_info:
+                        # Get risk indicator
+                        risks = get_satellite_risks(conjunction_results, watched_catnr, sat_info['name'])
+                        risk_color = "🟢"
+                        if risks:
+                            max_risk = max([r['risk_level'] for r in risks], key=lambda x: {'CRITICAL': 2, 'HIGH RISK': 1, 'NORMAL': 0}.get(x, 0))
+                            if max_risk == 'CRITICAL':
+                                risk_color = "🔴"
+                            elif max_risk == 'HIGH RISK':
+                                risk_color = "🟠"
+                        
+                        if st.button(f"{risk_color} {sat_info['name']}", key=f"watch_btn_{watched_catnr}", use_container_width=True):
+                            st.session_state.selected_satellite = watched_catnr
+                            st.rerun()
+        
+        st.markdown("---")
+        
+        # VIEW FILTERS (in expander, matching reference images)
+        if tracked_satellites:
+            with st.expander("⚙️ View Filters", expanded=False):
+                # Type filters (checkboxes)
+                show_stations = st.checkbox(
+                    "Show Stations",
+                    value=st.session_state.get('show_stations', True),
+                    help="Display space stations (red)",
+                    key='show_stations_checkbox'
+                )
+                st.session_state.show_stations = show_stations
+                
+                show_satellites = st.checkbox(
+                    "Show Satellites",
+                    value=st.session_state.get('show_satellites', True),
+                    help="Display operational satellites (blue)",
+                    key='show_satellites_checkbox'
+                )
+                st.session_state.show_satellites = show_satellites
+                
+                show_debris = st.checkbox(
+                    "Show Debris",
+                    value=st.session_state.get('show_debris', True),
+                    help="Display space debris (orange)",
+                    key='show_debris_checkbox'
+                )
+                st.session_state.show_debris = show_debris
+                
+                st.markdown("---")
+                
+                # Proximity radius slider
+                proximity_radius = st.slider(
+                    "Proximity Radius (km)",
+                    min_value=100,
+                    max_value=5000,
+                    value=st.session_state.get('proximity_radius', 1000),
+                    step=100,
+                    help="Show objects within this distance",
+                    key='proximity_radius_slider'
+                )
+                st.session_state.proximity_radius = proximity_radius
+                
+                st.markdown("---")
+                
+                # Focus Mode toggle
+                focus_mode = st.checkbox(
+                    "Focus on my satellites",
+                    value=st.session_state.get('focus_mode', False),
+                    help="When ON: Show your tracked satellites prominently with nearby objects as secondary. When OFF: Show all objects equally.",
+                    key='focus_mode_checkbox'
+                )
+                st.session_state.focus_mode = focus_mode
+                
+                st.caption(f"Tracking {len(tracked_satellites)} satellites")
         else:
             # Default values if no tracked satellites
             show_stations = True
@@ -1502,167 +2187,171 @@ if position and json_data:
     proximity_radius = st.session_state.get('proximity_radius', 1000)
     focus_mode = st.session_state.get('focus_mode', False)
     
-    # Create tabs for 2D map and 3D orbit view
-    tab1, tab2 = st.tabs(["🗺️ 2D Map View", "🌐 3D Orbit View"])
+    # Load conjunction results
+    conjunction_results = load_conjunction_results()
     
-    with tab1:
-        st.subheader("🌍 Tracked Satellites (2D Map)")
-        
-        # Validate position values before creating map
-        if (math.isnan(position['latitude']) or 
-            math.isnan(position['longitude']) or 
-            math.isnan(position['altitude'])):
-            st.error(
-                "❌ **Position Calculation Failed**\n\n"
-                "The ISS position could not be calculated. This may be due to:\n"
-                "- Invalid or corrupted TLE data\n"
-                "- TLE data that is too old or expired\n"
-                "- Error in position calculation\n\n"
-                "**Try:**\n"
-                "1. Switch to 'CelesTrak API' data source in the sidebar\n"
-                "2. Refresh the page\n"
-                "3. Check that TLE data is valid"
+    # Initialize watched satellites if not set
+    if 'watched_satellites' not in st.session_state:
+        st.session_state.watched_satellites = []
+    
+    # Initialize selected satellite if not set
+    if 'selected_satellite' not in st.session_state:
+        st.session_state.selected_satellite = None
+    
+    # Get the selected time from session state (set before sidebar)
+    current_time = st.session_state.get('selected_time', datetime.now(timezone.utc))
+    
+    # Calculate positions for all tracked satellites (needed for profile panel and views)
+    all_sat_positions = []
+    if tracked_satellites and satellites_tle_data:
+        try:
+            all_sat_positions = calculate_tracked_satellite_positions(
+                tracked_satellites,
+                satellites_tle_data,
+                current_time
             )
-        else:
-            # Calculate positions for all tracked satellites
+        except Exception as e:
             all_sat_positions = []
-            nearby_sat_positions = []
-            
-            if tracked_satellites and satellites_tle_data:
-                try:
-                    all_sat_positions = calculate_tracked_satellite_positions(
-                        tracked_satellites,
-                        satellites_tle_data,
-                        current_time
-                    )
-                    
-                    # In focus mode, also fetch nearby objects
-                    if focus_mode:
-                        # Fetch additional satellites from CelesTrak for nearby objects
-                        try:
-                            nearby_satellites_data = download_multiple_satellites(
-                                group='active', 
-                                limit=200  # Reasonable limit for nearby objects
-                            )
-                            
-                            # Calculate positions for nearby satellites
-                            nearby_positions = calculate_satellite_positions(
-                                nearby_satellites_data, 
-                                current_time
-                            )
-                            
-                            # Filter to only show objects near tracked satellites
-                            tracked_catnrs = {sat['catnr'] for sat in tracked_satellites}
-                            tracked_positions_3d = {}
-                            for sat_data in all_sat_positions:
-                                # Unpack: (x, y, z, name, alt, sat_type, catnr, lat, lon)
-                                x, y, z, name, alt, sat_type, catnr, lat, lon = sat_data
-                                if not (math.isnan(x) or math.isnan(y) or math.isnan(z)):
-                                    tracked_positions_3d[catnr] = (x, y, z)
-                            
-                            for x, y, z, name, alt, catnr in nearby_positions:
-                                if catnr in tracked_catnrs:
-                                    continue  # Skip tracked satellites
-                                
-                                # Check distance to nearest tracked satellite
-                                min_distance = float('inf')
-                                for tracked_pos in tracked_positions_3d.values():
-                                    distance = calculate_distance_3d(tracked_pos, (x, y, z))
-                                    min_distance = min(min_distance, distance)
-                                
-                                if min_distance <= proximity_radius:
-                                    nearby_sat_positions.append((x, y, z, name, alt, catnr))
-                        except Exception as e:
-                            st.warning(f"Could not fetch nearby objects: {e}")
-                            
-                except Exception as e:
-                    st.warning(f"Could not calculate all satellite positions: {e}")
-            
-            # Create and display map
-            try:
-                # Convert all_sat_positions to format expected by create_map: (lat, lon, alt, name, sat_type, catnr)
-                map_satellites = None
-                if all_sat_positions:
-                    map_satellites = []
-                    for sat_pos in all_sat_positions:
-                        # Unpack: (x, y, z, name, alt, sat_type, catnr, lat, lon)
-                        x, y, z, name, alt, sat_type, catnr, lat, lon = sat_pos
-                        if not (math.isnan(lat) or math.isnan(lon) or math.isnan(alt)):
-                            map_satellites.append((lat, lon, alt, name, sat_type, catnr))
-                
-                # Create map - in focus mode, show tracked satellites prominently
-                # Nearby objects are shown in 3D view, not on 2D map for simplicity
-                map_obj = create_map(
-                    position['latitude'],
-                    position['longitude'],
-                    position['altitude'],
-                    all_satellites=map_satellites
-                )
-                
-                # Use a fixed key so the map doesn't get recreated on every rerun
-                # The map will update its position internally without full recreation
-                map_data = st_folium(
-                    map_obj, 
-                    width=1200, 
-                    height=600, 
-                    key="iss_tracker_map",  # Fixed key prevents recreation
-                    returned_objects=[]
-                )
-                
-                # Additional info below map
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.info(f"**Last Update:** {position['timestamp']}")
-                with col2:
-                    if tracked_satellites:
-                        if focus_mode:
-                            st.info(f"**Tracking {len(tracked_satellites)} satellites, {len(nearby_sat_positions)} nearby objects**")
-                        else:
-                            st.info(f"**Tracked Satellites:** {len(tracked_satellites)}")
-                    else:
-                        st.info(f"**Speed:** ~7.66 km/s (orbital velocity)")
-                with col3:
-                    st.info(f"**Orbit Period:** ~92 minutes")
-                
-                # Show satellite list if we have tracked satellites
-                if tracked_satellites and all_sat_positions:
-                    st.markdown("---")
-                    st.subheader("📋 Tracked Satellites")
-                    
-                    # Create a table showing all tracked satellites
-                    sat_data = []
-                    for sat_pos in all_sat_positions:
-                        # Unpack: (x, y, z, name, alt, sat_type, catnr, lat, lon)
-                        x, y, z, sat_name, sat_alt, sat_type, catnr, sat_lat, sat_lon = sat_pos
-                        if not (math.isnan(sat_lat) or math.isnan(sat_lon) or math.isnan(sat_alt)):
-                            sat_data.append({
-                                'Name': sat_name,
-                                'Type': sat_type.title(),
-                                'Latitude': f"{sat_lat:.4f}°",
-                                'Longitude': f"{sat_lon:.4f}°",
-                                'Altitude': f"{sat_alt:.2f} km",
-                                'CATNR': catnr
-                            })
-                    
-                    if sat_data:
-                        try:
-                            import pandas as pd
-                            df = pd.DataFrame(sat_data)
-                            st.dataframe(df, use_container_width=True, hide_index=True)
-                        except ImportError:
-                            # Fallback if pandas not available - show as markdown table
-                            st.markdown("| Name | Type | Latitude | Longitude | Altitude | CATNR |")
-                            st.markdown("|------|------|----------|-----------|----------|-------|")
-                            for sat in sat_data:
-                                st.markdown(f"| {sat['Name']} | {sat['Type']} | {sat['Latitude']} | {sat['Longitude']} | {sat['Altitude']} | {sat['CATNR']} |")
-            except ValueError as e:
-                st.error(f"❌ **Map Creation Failed**: {str(e)}")
-            except Exception as e:
-                st.error(f"❌ **Unexpected Error**: {str(e)}")
-                st.info("Try refreshing the page or switching to CelesTrak API data source.")
     
-    with tab2:
+    # Main content layout: 3D view on left, profile panel on right (matching reference images)
+    main_col1, main_col2 = st.columns([2, 1])
+    
+    # Satellite Profile Panel (right sidebar, matching reference images)
+    selected_catnr = st.session_state.get('selected_satellite')
+    with main_col2:
+        if selected_catnr:
+            # Find satellite info
+            sat_info = None
+            sat_tle_data = None
+            for sat in tracked_satellites:
+                if sat['catnr'] == selected_catnr:
+                    sat_info = sat
+                    sat_tle_data = satellites_tle_data.get(selected_catnr)
+                    break
+            
+            if sat_info and sat_tle_data:
+                # Profile Panel Header (matching reference images)
+                profile_header_col1, profile_header_col2 = st.columns([4, 1])
+            with profile_header_col1:
+                st.subheader("🛰️ SATELLITE PROFILE")
+                st.markdown(f"**{sat_info['name']}**")
+                st.caption(f"NORAD ID: {selected_catnr}")
+            with profile_header_col2:
+                # Star button to add to watched list
+                is_watched = selected_catnr in st.session_state.get('watched_satellites', [])
+                star_icon = "⭐" if is_watched else "☆"
+                if st.button(star_icon, key=f"star_{selected_catnr}", help="Add to watched list"):
+                    watched = st.session_state.get('watched_satellites', [])
+                    if is_watched:
+                        watched.remove(selected_catnr)
+                    else:
+                        if selected_catnr not in watched:
+                            watched.append(selected_catnr)
+                    st.session_state.watched_satellites = watched
+                    st.rerun()
+                # Close button
+                if st.button("✕", key=f"close_{selected_catnr}", help="Close profile"):
+                    st.session_state.selected_satellite = None
+                    st.rerun()
+            
+            st.markdown("---")
+            
+            # General Information
+            st.markdown("**General Information**")
+            st.write(f"**Object Type:** {sat_info['type'].title()}")
+            st.write(f"**Mission Type:** Not Available")  # Placeholder - could be added to satellites.json
+            st.write(f"**Country:** Not Available")  # Placeholder
+            st.write(f"**Sector:** Not Available")  # Placeholder
+                
+            # Current Position
+            st.subheader("📍 Current Position")
+            # Use pre-calculated positions
+            if all_sat_positions:
+                for sat_pos in all_sat_positions:
+                    x, y, z, name, alt, sat_type, catnr, lat, lon = sat_pos
+                    if catnr == selected_catnr:
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.metric("Latitude", f"{lat:.4f}°")
+                        with col2:
+                            st.metric("Longitude", f"{lon:.4f}°")
+                        with col3:
+                            st.metric("Altitude", f"{alt:.2f} km")
+                        break
+            
+            st.markdown("---")
+            
+            # TLE Freshness
+            st.subheader("📡 TLE Data")
+            epoch = sat_tle_data.get('EPOCH', 'Unknown')
+            if epoch != 'Unknown':
+                status_level, hours_old, status_message = get_data_freshness_status(epoch)
+                if status_level == 'fresh':
+                    st.success(f"✅ {status_message}")
+                elif status_level == 'warning':
+                    st.warning(f"⚠️ {status_message}")
+                elif status_level == 'old':
+                    st.warning(f"⚠️ {status_message}")
+                else:
+                    st.error(f"❌ {status_message}")
+            else:
+                st.info("TLE epoch information not available")
+            
+            st.markdown("---")
+            
+            # Conjunction Status
+            st.subheader("⚠️ Conjunction Status")
+            risks = get_satellite_risks(conjunction_results, selected_catnr, sat_info['name'])
+            
+            if risks:
+                # Find highest risk
+                max_risk = max(risks, key=lambda r: {'CRITICAL': 2, 'HIGH RISK': 1, 'NORMAL': 0}.get(r['risk_level'], 0))
+                
+                if max_risk['risk_level'] == 'CRITICAL':
+                    st.error(f"🚨 **CRITICAL RISK**")
+                elif max_risk['risk_level'] == 'HIGH RISK':
+                    st.warning(f"⚠️ **HIGH RISK**")
+                else:
+                    st.info(f"ℹ️ **NORMAL RISK**")
+                
+                st.write(f"**Closest Object:** {max_risk['other_satellite']}")
+                st.write(f"**Distance:** {max_risk['distance_km']:.3f} km")
+                
+                # Parse time string
+                try:
+                    if isinstance(max_risk['time'], str):
+                        risk_time = datetime.fromisoformat(max_risk['time'].replace('Z', '+00:00'))
+                        st.write(f"**Time of Closest Approach:** {risk_time.strftime('%Y-%m-%d %H:%M:%S UTC')}")
+                except:
+                    st.write(f"**Time of Closest Approach:** {max_risk['time']}")
+                
+                # Show all risks if multiple
+                if len(risks) > 1:
+                    with st.expander(f"View all {len(risks)} conjunction risks"):
+                        for i, risk in enumerate(risks, 1):
+                            st.write(f"**{i}. {risk['other_satellite']}** - {risk['distance_km']:.3f} km ({risk['risk_level']})")
+            else:
+                st.success("✅ No conjunction risks detected")
+        else:
+            st.info("Select a satellite from the list to view its profile")
+    
+    # 3D Orbit View (main content, in left column)
+    with main_col1:
         st.subheader("🌐 Multi-Satellite 3D Orbit View")
+        
+        # Time indicator - show what time is being displayed
+        live_mode = st.session_state.get('live_mode', True)
+        if live_mode:
+            st.markdown(f"**🟢 LIVE** | {current_time.strftime('%Y-%m-%d %H:%M:%S')} UTC")
+        else:
+            # Calculate time difference for context
+            now = datetime.now(timezone.utc)
+            time_diff = current_time - now
+            if time_diff.total_seconds() > 0:
+                time_context = f"🔮 {abs(time_diff.days)}d {abs(time_diff.seconds // 3600)}h in future"
+            else:
+                time_context = f"📜 {abs(time_diff.days)}d {abs(time_diff.seconds // 3600)}h in past"
+            st.markdown(f"**📅 {current_time.strftime('%Y-%m-%d %H:%M:%S')} UTC** | {time_context}")
         
         # Validate position values before creating 3D plot
         if (math.isnan(position['latitude']) or 
@@ -1683,12 +2372,14 @@ if position and json_data:
             # Get satellite object for orbit calculation
             try:
                 satellite = parse_tle_from_json(json_data)
-                current_time = datetime.now(timezone.utc)
-                
+            
                 # Check if we have tracked satellites to show
                 if tracked_satellites and satellites_tle_data:
                     # Use the new multi-satellite visualization
                     focus_mode = st.session_state.get('focus_mode', False)
+                    
+                    # Get satellite visibility state
+                    satellite_visibility = st.session_state.get('satellite_visibility', {})
                     
                     fig_3d, shown_count, total_count, nearby_count = create_3d_tracked_satellites_plot(
                         position,
@@ -1700,7 +2391,9 @@ if position and json_data:
                         show_satellites=show_satellites,
                         show_debris=show_debris,
                         proximity_radius_km=proximity_radius,
-                        focus_mode=focus_mode
+                        focus_mode=focus_mode,
+                        conjunction_results=conjunction_results,
+                        satellite_visibility=satellite_visibility
                     )
                     
                     # Display count based on focus mode
@@ -1708,6 +2401,51 @@ if position and json_data:
                         st.info(f"**Tracking {shown_count} satellites, {nearby_count} nearby objects** (within {proximity_radius} km)")
                     else:
                         st.info(f"**Showing {shown_count} of {total_count} tracked objects** (within {proximity_radius} km of ISS)")
+                    
+                    st.plotly_chart(fig_3d, use_container_width=True, key="3d_plot")
+                    
+                    # Status Bar at bottom
+                    st.markdown("---")
+                    col1, col2, col3, col4 = st.columns(4)
+                    
+                    # Last conjunction check
+                    if conjunction_results and 'timestamp' in conjunction_results:
+                        try:
+                            check_time = datetime.fromisoformat(conjunction_results['timestamp'].replace('Z', '+00:00'))
+                            time_ago = current_time - check_time.replace(tzinfo=timezone.utc)
+                            hours_ago = time_ago.total_seconds() / 3600
+                            if hours_ago < 1:
+                                time_str = f"{int(time_ago.total_seconds() / 60)} minutes ago"
+                            else:
+                                time_str = f"{hours_ago:.1f} hours ago"
+                        except:
+                            time_str = conjunction_results['timestamp']
+                    else:
+                        time_str = "Never"
+                    
+                    with col1:
+                        st.caption(f"**Last conjunction check:** {time_str}")
+                    
+                    # Next check (placeholder for Phase 3)
+                    with col2:
+                        st.caption("**Next check:** Scheduled (Phase 3)")
+                    
+                    # Tracking stats
+                    active_risks = 0
+                    if conjunction_results and 'results' in conjunction_results:
+                        active_risks = len([r for r in conjunction_results['results'] if r.get('risk_level') in ['CRITICAL', 'HIGH RISK']])
+                    
+                    with col3:
+                        if focus_mode:
+                            st.caption(f"**Tracking:** {shown_count} satellites | {nearby_count} nearby objects | {active_risks} active risks")
+                        else:
+                            st.caption(f"**Tracking:** {shown_count} objects | {active_risks} active risks")
+                    
+                    with col4:
+                        if active_risks > 0:
+                            st.warning(f"⚠️ {active_risks} active risk(s) detected")
+                        else:
+                            st.success("✅ No active risks")
                     
                     # Debug information to help diagnose issues
                     if shown_count == 0 and total_count > 1:
@@ -1805,9 +2543,6 @@ if position and json_data:
                                 
                                 st.write("")
                     
-                    # Display the 3D plot
-                    st.plotly_chart(fig_3d, use_container_width=True)
-                    
                     # Info about 3D view
                     st.info("**3D View Features:**")
                     st.markdown("""
@@ -1837,20 +2572,60 @@ if position and json_data:
                     )
                     
                     # Display the 3D plot
-                    st.plotly_chart(fig_3d, use_container_width=True)
+                    st.plotly_chart(fig_3d, use_container_width=True, key="3d_plot_alt")
                     
-                    # Info about 3D view
-                    st.info("**3D View Features:**")
-                    features_text = """
-                    - **Earth**: Semi-transparent gray sphere (radius: 6,371 km)
-                    - **ISS Position**: Red dot showing current location
-                    - **Orbit Path**: Red line showing predicted path for next 90 minutes
-                    - **Interactive**: Rotate, zoom, and pan to explore the 3D view
-                    """
-                    if show_shell:
-                        features_text += f"\n- **Orbital Shell**: White dots showing {max_sats} satellites from '{sat_group}' group"
-                    st.markdown(features_text)
+                    # Status Bar at bottom
+                    st.markdown("---")
+                    col1, col2, col3, col4 = st.columns(4)
                     
+                    # Last conjunction check
+                    if conjunction_results and 'timestamp' in conjunction_results:
+                        try:
+                            check_time = datetime.fromisoformat(conjunction_results['timestamp'].replace('Z', '+00:00'))
+                            time_ago = current_time - check_time.replace(tzinfo=timezone.utc)
+                            hours_ago = time_ago.total_seconds() / 3600
+                            if hours_ago < 1:
+                                time_str = f"{int(time_ago.total_seconds() / 60)} minutes ago"
+                            else:
+                                time_str = f"{hours_ago:.1f} hours ago"
+                        except:
+                            time_str = conjunction_results['timestamp']
+                    else:
+                        time_str = "Never"
+                    
+                    with col1:
+                        st.caption(f"**Last conjunction check:** {time_str}")
+                    
+                    # Next check (placeholder for Phase 3)
+                    with col2:
+                        st.caption("**Next check:** Scheduled (Phase 3)")
+                    
+                    # Tracking stats
+                    active_risks = 0
+                    if conjunction_results and 'results' in conjunction_results:
+                        active_risks = len([r for r in conjunction_results['results'] if r.get('risk_level') in ['CRITICAL', 'HIGH RISK']])
+                    
+                    with col3:
+                        st.caption(f"**Tracking:** 0 objects | {active_risks} active risks")
+                    
+                    with col4:
+                        if active_risks > 0:
+                            st.warning(f"⚠️ {active_risks} active risk(s) detected")
+                        else:
+                            st.success("✅ No active risks")
+                        
+                        # Info about 3D view
+                        st.info("**3D View Features:**")
+                        features_text = """
+                        - **Earth**: Semi-transparent gray sphere (radius: 6,371 km)
+                        - **ISS Position**: Red dot showing current location
+                        - **Orbit Path**: Red line showing predicted path for next 90 minutes
+                        - **Interactive**: Rotate, zoom, and pan to explore the 3D view
+                        """
+                        if show_shell:
+                            features_text += f"\n- **Orbital Shell**: White dots showing {max_sats} satellites from '{sat_group}' group"
+                        st.markdown(features_text)
+                        
                     if not tracked_satellites:
                         st.warning("⚠️ No tracked satellites configured. Add satellites to `satellites.json` to see multi-satellite tracking.")
             

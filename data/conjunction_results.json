@@ -1,68 +1,68 @@
 {
-  "timestamp": "2026-01-17T16:17:08.054591+00:00",
+  "timestamp": "2026-01-17T19:40:49.427661+00:00",
   "total_risks": 3,
   "results": [
     {
-      "min_distance_km": 1288.534,
-      "min_distance_time": "2026-01-19 15:38:06.978776+00:00",
+      "min_distance_km": 88.222,
+      "min_distance_time": "2026-01-19 19:31:48.517090+00:00",
       "risk_level": "NORMAL",
-      "risk_message": "NORMAL: Minimum distance of 1288.534 km at 2026-01-19 15:38:06 UTC. No immediate risk detected.",
+      "risk_message": "NORMAL: Minimum distance of 88.222 km at 2026-01-19 19:31:48 UTC. No immediate risk detected.",
       "sat1_name": "ISS (ZARYA)",
       "sat2_name": "HST",
       "total_steps": 2881,
       "analysis_period_hours": 48,
       "step_size_minutes": 1,
       "sat1_position_at_closest": {
-        "latitude": -32.2739,
-        "longitude": -68.6022,
-        "altitude_km": 427.32
+        "latitude": 27.9883,
+        "longitude": 57.0926,
+        "altitude_km": 421.14
       },
       "sat2_position_at_closest": {
-        "latitude": -28.0576,
-        "longitude": -57.0823,
-        "altitude_km": 484.57
+        "latitude": 28.4523,
+        "longitude": 57.4337,
+        "altitude_km": 480.0
       }
     },
     {
-      "min_distance_km": 239.993,
-      "min_distance_time": "2026-01-17 16:38:07.347733+00:00",
+      "min_distance_km": 575.604,
+      "min_distance_time": "2026-01-17 19:43:48.837625+00:00",
       "risk_level": "NORMAL",
-      "risk_message": "NORMAL: Minimum distance of 239.993 km at 2026-01-17 16:38:07 UTC. No immediate risk detected.",
+      "risk_message": "NORMAL: Minimum distance of 575.604 km at 2026-01-17 19:43:48 UTC. No immediate risk detected.",
       "sat1_name": "ISS (ZARYA)",
       "sat2_name": "CSS (TIANHE)",
       "total_steps": 2881,
       "analysis_period_hours": 48,
       "step_size_minutes": 1,
       "sat1_position_at_closest": {
-        "latitude": -5.7101,
-        "longitude": 142.3524,
-        "altitude_km": 425.17
+        "latitude": -5.4976,
+        "longitude": 94.9953,
+        "altitude_km": 425.09
       },
       "sat2_position_at_closest": {
-        "latitude": -7.6566,
-        "longitude": 142.8378,
-        "altitude_km": 381.3
+        "latitude": -4.0444,
+        "longitude": 99.6421,
+        "altitude_km": 381.05
       }
     },
     {
-      "min_distance_km": 203.678,
-      "min_distance_time": "2026-01-19 05:39:07.704447+00:00",
+      "min_distance_km": 142.322,
+      "min_distance_time": "2026-01-19 05:38:49.133473+00:00",
       "risk_level": "NORMAL",
-      "risk_message": "NORMAL: Minimum distance of 203.678 km at 2026-01-19 05:39:07 UTC. No immediate risk detected.",
+      "risk_message": "NORMAL: Minimum distance of 142.322 km at 2026-01-19 05:38:49 UTC. No immediate risk detected.",
       "sat1_name": "HST",
       "sat2_name": "CSS (TIANHE)",
       "total_steps": 2881,
       "analysis_period_hours": 48,
       "step_size_minutes": 1,
       "sat1_position_at_closest": {
-        "latitude": 15.0713,
-        "longitude": -35.8513,
-        "altitude_km": 478.3
+        "latitude": 15.5623,
+        "longitude": -36.8919,
+        "altitude_km": 478.34
       },
       "sat2_position_at_closest": {
-        "latitude": 16.4557,
-        "longitude": -35.2062,
-        "altitude_km": 381.97
+        "latitude": 15.7743,
+        "longitude": -36.0047,
+        "altitude_km": 381.8
       }
     }
   ]

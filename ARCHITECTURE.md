@@ -103,11 +103,111 @@ SatWatch uses **SGP4 (Simplified General Perturbations 4)** propagation:
 
 ### Future Phases (Planned)
 
-- **Phase 4**: Collision risk assessment ✅ **IN PROGRESS** - Basic conjunction calculator implemented
+- **Phase 4**: Collision risk assessment ✅ **COMPLETE** - Basic conjunction calculator implemented
 - **Phase 5**: Alerting system
 - **Phase 6**: Historical tracking
 - **Phase 7**: API endpoints
 - **Phase 8**: AI/ML enhancements (if needed)
+
+---
+
+## UI Enhancement Phases (2026)
+
+These phases focus on improving the dashboard user experience, inspired by professional 
+satellite tracking interfaces like Slingshot's Digital Space Twin.
+
+### UI Phase 1: Timeline with Datetime Picker ✅ **COMPLETE**
+- Datetime picker to view satellite positions at any point in time (past/future)
+- "Live Mode" toggle to return to real-time tracking
+- Visual indicator showing LIVE vs historical viewing mode
+- All position calculations respect the selected time
+
+### UI Phase 2: Satellite Search (Planned)
+- Text input to filter/search satellites by name or NORAD ID
+- Instant filtering of satellite list in sidebar
+- Highlight matching results
+
+### UI Phase 3: Orbital Data Section (Planned)
+- Display orbital parameters in satellite profile panel
+- Show: inclination, eccentricity, orbital period, apogee, perigee
+- Collapsible section for advanced users
+
+### UI Phase 4: Enhanced Satellite List UI (Planned)
+- Visibility toggles (eye icons) per satellite
+- Better grouping by type (stations, satellites, debris)
+- Expand/collapse sections
+- Pin favorite satellites to top of list
+
+---
+
+## Cesium Bridge (2026)
+
+Professional-grade 3D visualization using CesiumJS, separate from the Streamlit dashboard.
+
+### Phase 1: Cesium Bridge MVP ✅ **COMPLETE**
+
+**Architecture:**
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Python Backend                            │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐  │
+│  │   Skyfield   │ →  │    SGP4      │ →  │  Positions   │  │
+│  │   + TLE      │    │  Propagation │    │  (lat/lon)   │  │
+│  └──────────────┘    └──────────────┘    └──────────────┘  │
+│                              ↓                               │
+│                    export_cesium_data.py                     │
+│                              ↓                               │
+│                     JSON Position File                       │
+└─────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────┐
+│                   CesiumJS Frontend                          │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐  │
+│  │  Load JSON   │ →  │  Sampled     │ →  │  3D Globe    │  │
+│  │              │    │  Position    │    │  Animation   │  │
+│  └──────────────┘    │  Property    │    └──────────────┘  │
+│                      └──────────────┘                       │
+│                    (interpolation)                           │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Key Principle:** Physics stays in Python. Visualization stays in JavaScript. Clean separation.
+
+**Features:**
+- CesiumJS WebGL globe with ESRI World Imagery
+- Time-dynamic positions using `SampledPositionProperty`
+- Play / pause / time scrub via Cesium Clock
+- Color-coded by type: station (red), satellite (blue), debris (orange)
+- Orbital path trails (1-hour history)
+- Playback speed control (1x to 600x)
+
+**Data Contract:**
+```json
+{
+  "epoch": "2026-01-17T21:00:00Z",
+  "satellites": [
+    {
+      "id": "25544",
+      "name": "ISS",
+      "type": "station",
+      "positions": [
+        { "time": "...", "lat": 14.3, "lon": -96.5, "alt_km": 414 }
+      ]
+    }
+  ]
+}
+```
+
+### Phase 2: Real-time Data Pipeline (Planned)
+- Automated position export (cron/scheduler)
+- WebSocket updates for live data
+- Backend API for on-demand position generation
+
+### Phase 3: Advanced Visualization (Planned)
+- Conjunction visualization (warning lines between close objects)
+- Satellite footprints and coverage areas
+- Ground station display
+- Orbital plane visualization
 
 ---
 
