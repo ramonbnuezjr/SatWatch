@@ -200,33 +200,51 @@ const SatWatchCesium = (function() {
      */
     function createLocalSkybox() {
         return new Promise((resolve) => {
-            // Check if local skybox files exist by trying to load one
-            const testImg = new Image();
-            testImg.onload = () => {
-                try {
-                    const customSkybox = new Cesium.SkyBox({
-                        sources: {
-                            positiveX: 'skybox/px.jpg',
-                            negativeX: 'skybox/nx.jpg',
-                            positiveY: 'skybox/py.jpg',
-                            negativeY: 'skybox/ny.jpg',
-                            positiveZ: 'skybox/pz.jpg',
-                            negativeZ: 'skybox/nz.jpg'
-                        }
-                    });
-                    viewer.scene.skyBox = customSkybox;
-                    console.log('Local high-resolution skybox loaded');
-                    resolve(true);
-                } catch (error) {
-                    console.warn('Local skybox loading error:', error);
+            // Try different file extensions
+            const extensions = ['jpg', 'jpeg', 'png'];
+            let extensionIndex = 0;
+            
+            function tryExtension() {
+                if (extensionIndex >= extensions.length) {
+                    console.log('No local skybox found, using procedural generation');
                     resolve(false);
+                    return;
                 }
-            };
-            testImg.onerror = () => {
-                console.log('No local skybox found, using procedural generation');
-                resolve(false);
-            };
-            testImg.src = 'skybox/px.jpg';
+                
+                const ext = extensions[extensionIndex];
+                const testImg = new Image();
+                
+                testImg.onload = () => {
+                    try {
+                        const customSkybox = new Cesium.SkyBox({
+                            sources: {
+                                positiveX: `skybox/px.${ext}`,
+                                negativeX: `skybox/nx.${ext}`,
+                                positiveY: `skybox/py.${ext}`,
+                                negativeY: `skybox/ny.${ext}`,
+                                positiveZ: `skybox/pz.${ext}`,
+                                negativeZ: `skybox/nz.${ext}`
+                            }
+                        });
+                        viewer.scene.skyBox = customSkybox;
+                        console.log(`Local skybox loaded (.${ext} format)`);
+                        resolve(true);
+                    } catch (error) {
+                        console.warn('Local skybox loading error:', error);
+                        extensionIndex++;
+                        tryExtension();
+                    }
+                };
+                
+                testImg.onerror = () => {
+                    extensionIndex++;
+                    tryExtension();
+                };
+                
+                testImg.src = `skybox/px.${ext}`;
+            }
+            
+            tryExtension();
         });
     }
     

@@ -608,6 +608,122 @@ def get_data_freshness_status(epoch_str: str) -> tuple[str, float, str]:
         return 'expired', 999, "Unable to determine data age"
 
 
+def calculate_orbital_parameters(tle_data: dict) -> dict:
+    """
+    Calculate orbital parameters from TLE data.
+    
+    Extracts and calculates key orbital parameters that are useful for
+    understanding a satellite's orbit characteristics.
+    
+    Args:
+        tle_data: Dictionary containing TLE_LINE1, TLE_LINE2, and optionally
+                  pre-parsed orbital elements from CelesTrak JSON format
+        
+    Returns:
+        dict: Orbital parameters including:
+            - inclination: Orbital inclination in degrees
+            - eccentricity: Orbital eccentricity (0 = circular, 1 = parabolic)
+            - period_minutes: Orbital period in minutes
+            - apogee_km: Apogee altitude in km (highest point)
+            - perigee_km: Perigee altitude in km (lowest point)
+            - semi_major_axis_km: Semi-major axis in km
+            - mean_motion: Revolutions per day
+            - raan: Right Ascension of Ascending Node in degrees
+            - arg_perigee: Argument of Perigee in degrees
+    """
+    # Earth's radius in km
+    EARTH_RADIUS_KM = 6378.137
+    # Earth's gravitational parameter (km³/s²)
+    MU = 398600.4418
+    
+    params = {}
+    
+    try:
+        # Try to get values from pre-parsed JSON fields first (CelesTrak format)
+        if 'INCLINATION' in tle_data:
+            params['inclination'] = float(tle_data['INCLINATION'])
+        if 'ECCENTRICITY' in tle_data:
+            params['eccentricity'] = float(tle_data['ECCENTRICITY'])
+        if 'MEAN_MOTION' in tle_data:
+            params['mean_motion'] = float(tle_data['MEAN_MOTION'])
+        if 'RA_OF_ASC_NODE' in tle_data:
+            params['raan'] = float(tle_data['RA_OF_ASC_NODE'])
+        if 'ARG_OF_PERICENTER' in tle_data:
+            params['arg_perigee'] = float(tle_data['ARG_OF_PERICENTER'])
+        
+        # If not available, parse from TLE lines
+        tle_line2 = tle_data.get('TLE_LINE2', '')
+        if tle_line2 and len(tle_line2) >= 69:
+            # TLE Line 2 format (0-indexed positions):
+            # 8-16: Inclination (degrees)
+            # 17-25: RAAN (degrees)
+            # 26-33: Eccentricity (decimal point assumed)
+            # 34-42: Argument of Perigee (degrees)
+            # 43-51: Mean Anomaly (degrees)
+            # 52-63: Mean Motion (revs/day)
+            
+            if 'inclination' not in params:
+                try:
+                    params['inclination'] = float(tle_line2[8:16].strip())
+                except (ValueError, IndexError):
+                    pass
+            
+            if 'raan' not in params:
+                try:
+                    params['raan'] = float(tle_line2[17:25].strip())
+                except (ValueError, IndexError):
+                    pass
+            
+            if 'eccentricity' not in params:
+                try:
+                    # Eccentricity in TLE has implied decimal point
+                    ecc_str = tle_line2[26:33].strip()
+                    params['eccentricity'] = float('0.' + ecc_str)
+                except (ValueError, IndexError):
+                    pass
+            
+            if 'arg_perigee' not in params:
+                try:
+                    params['arg_perigee'] = float(tle_line2[34:42].strip())
+                except (ValueError, IndexError):
+                    pass
+            
+            if 'mean_motion' not in params:
+                try:
+                    params['mean_motion'] = float(tle_line2[52:63].strip())
+                except (ValueError, IndexError):
+                    pass
+        
+        # Calculate derived parameters if we have mean motion
+        if 'mean_motion' in params and params['mean_motion'] > 0:
+            mean_motion = params['mean_motion']
+            
+            # Orbital period in minutes
+            params['period_minutes'] = 1440.0 / mean_motion  # 1440 = minutes per day
+            
+            # Semi-major axis using Kepler's third law
+            # T = 2π√(a³/μ) => a = (μ(T/2π)²)^(1/3)
+            period_seconds = params['period_minutes'] * 60
+            params['semi_major_axis_km'] = (MU * (period_seconds / (2 * math.pi))**2)**(1/3)
+            
+            # Calculate apogee and perigee if we have eccentricity
+            if 'eccentricity' in params:
+                ecc = params['eccentricity']
+                sma = params['semi_major_axis_km']
+                
+                # Apogee = a(1+e) - Earth_radius
+                # Perigee = a(1-e) - Earth_radius
+                params['apogee_km'] = sma * (1 + ecc) - EARTH_RADIUS_KM
+                params['perigee_km'] = sma * (1 - ecc) - EARTH_RADIUS_KM
+        
+        return params
+        
+    except Exception as e:
+        # Return whatever we managed to calculate
+        params['error'] = str(e)
+        return params
+
+
 def create_map(
     latitude: float, 
     longitude: float, 
@@ -1983,12 +2099,22 @@ with st.sidebar:
                     display_satellites = [sat for sat in display_satellites if sat['catnr'] in watched_satellites]
                 
                 if display_satellites and show_space_objects:
-                    for sat in display_satellites:
+                    # ========================================
+                    # GROUP BY TYPE (UI Phase 4)
+                    # ========================================
+                    # Separate satellites by type
+                    starred_sats = [sat for sat in display_satellites if sat['catnr'] in watched_satellites]
+                    stations = [sat for sat in display_satellites if sat.get('type') == 'station' and sat['catnr'] not in watched_satellites]
+                    satellites = [sat for sat in display_satellites if sat.get('type') == 'satellite' and sat['catnr'] not in watched_satellites]
+                    debris = [sat for sat in display_satellites if sat.get('type') == 'debris' and sat['catnr'] not in watched_satellites]
+                    other = [sat for sat in display_satellites if sat.get('type') not in ['station', 'satellite', 'debris'] and sat['catnr'] not in watched_satellites]
+                    
+                    # Helper function to render satellite entry
+                    def render_satellite_entry(sat, prefix=""):
                         catnr = sat['catnr']
                         name = sat['name']
                         sat_type = sat.get('type', 'satellite')
                         
-                        # Check if selected
                         is_selected = st.session_state.get('selected_satellite') == catnr
                         is_watched = catnr in watched_satellites
                         is_visible = st.session_state.satellite_visibility.get(catnr, True)
@@ -2003,27 +2129,23 @@ with st.sidebar:
                             elif max_risk == 'HIGH RISK':
                                 risk_indicator = "🟠"
                         
-                        # Create columns for satellite entry
                         col1, col2, col3, col4 = st.columns([1, 3, 1, 1])
                         
                         with col1:
-                            # Eye icon for visibility toggle
                             visibility_icon = "👁️" if is_visible else "👁️‍🗨️"
-                            if st.button(visibility_icon, key=f"vis_{catnr}", help="Toggle visibility"):
+                            if st.button(visibility_icon, key=f"{prefix}vis_{catnr}", help="Toggle visibility"):
                                 st.session_state.satellite_visibility[catnr] = not is_visible
                                 st.rerun()
                         
                         with col2:
-                            # Satellite name (clickable to select)
                             button_style = "primary" if is_selected else "secondary"
-                            if st.button(name, key=f"select_{catnr}", use_container_width=True, type=button_style):
+                            if st.button(name, key=f"{prefix}select_{catnr}", use_container_width=True, type=button_style):
                                 st.session_state.selected_satellite = catnr
                                 st.rerun()
                         
                         with col3:
-                            # Star icon for watch/unwatch
                             star_icon = "⭐" if is_watched else "☆"
-                            if st.button(star_icon, key=f"star_{catnr}", help="Add to watched list"):
+                            if st.button(star_icon, key=f"{prefix}star_{catnr}", help="Add to watched list"):
                                 watched = st.session_state.get('watched_satellites', [])
                                 if is_watched:
                                     watched.remove(catnr)
@@ -2034,8 +2156,38 @@ with st.sidebar:
                                 st.rerun()
                         
                         with col4:
-                            # Risk indicator
                             st.markdown(risk_indicator)
+                    
+                    # Render starred satellites first (pinned to top)
+                    if starred_sats:
+                        st.markdown("**⭐ Favorites**")
+                        for sat in starred_sats:
+                            render_satellite_entry(sat, "fav_")
+                        st.markdown("")
+                    
+                    # Render stations
+                    if stations:
+                        with st.expander(f"🏠 Stations ({len(stations)})", expanded=True):
+                            for sat in stations:
+                                render_satellite_entry(sat, "sta_")
+                    
+                    # Render satellites
+                    if satellites:
+                        with st.expander(f"🛰️ Satellites ({len(satellites)})", expanded=True):
+                            for sat in satellites:
+                                render_satellite_entry(sat, "sat_")
+                    
+                    # Render debris
+                    if debris:
+                        with st.expander(f"💥 Debris ({len(debris)})", expanded=False):
+                            for sat in debris:
+                                render_satellite_entry(sat, "deb_")
+                    
+                    # Render other types
+                    if other:
+                        with st.expander(f"📡 Other ({len(other)})", expanded=False):
+                            for sat in other:
+                                render_satellite_entry(sat, "oth_")
                 
                 elif not display_satellites:
                     st.caption("No satellites match your search.")
@@ -2296,6 +2448,94 @@ if position and json_data:
                     st.error(f"❌ {status_message}")
             else:
                 st.info("TLE epoch information not available")
+            
+            st.markdown("---")
+            
+            # ========================================
+            # ORBITAL DATA SECTION (UI Phase 3)
+            # ========================================
+            with st.expander("🌍 Orbital Data", expanded=True):
+                orbital_params = calculate_orbital_parameters(sat_tle_data)
+                
+                if orbital_params and 'inclination' in orbital_params:
+                    # Primary orbital parameters
+                    st.markdown("**Orbital Parameters**")
+                    
+                    # Inclination and Eccentricity row
+                    orb_col1, orb_col2 = st.columns(2)
+                    with orb_col1:
+                        inc = orbital_params.get('inclination', 0)
+                        st.metric("Inclination", f"{inc:.2f}°")
+                        # Orbit type hint
+                        if inc < 10:
+                            st.caption("Near-equatorial")
+                        elif inc > 80 and inc < 100:
+                            st.caption("Polar orbit")
+                        elif abs(inc - 98.7) < 5:
+                            st.caption("Sun-synchronous")
+                    
+                    with orb_col2:
+                        ecc = orbital_params.get('eccentricity', 0)
+                        st.metric("Eccentricity", f"{ecc:.6f}")
+                        if ecc < 0.01:
+                            st.caption("Near-circular")
+                        elif ecc < 0.1:
+                            st.caption("Slightly elliptical")
+                        else:
+                            st.caption("Elliptical")
+                    
+                    # Period and Semi-major axis row
+                    orb_col3, orb_col4 = st.columns(2)
+                    with orb_col3:
+                        period = orbital_params.get('period_minutes', 0)
+                        if period > 0:
+                            hours = int(period // 60)
+                            mins = int(period % 60)
+                            st.metric("Orbital Period", f"{hours}h {mins}m")
+                            # Orbit altitude hint
+                            if period < 100:
+                                st.caption("Low Earth Orbit")
+                            elif period < 720:
+                                st.caption("LEO/MEO")
+                            elif period > 1400 and period < 1450:
+                                st.caption("Geostationary")
+                    
+                    with orb_col4:
+                        mm = orbital_params.get('mean_motion', 0)
+                        if mm > 0:
+                            st.metric("Revs/Day", f"{mm:.4f}")
+                    
+                    # Apogee and Perigee row
+                    st.markdown("**Altitude Range**")
+                    orb_col5, orb_col6 = st.columns(2)
+                    with orb_col5:
+                        apogee = orbital_params.get('apogee_km', 0)
+                        if apogee > 0:
+                            st.metric("Apogee", f"{apogee:.1f} km")
+                    
+                    with orb_col6:
+                        perigee = orbital_params.get('perigee_km', 0)
+                        if perigee > 0:
+                            st.metric("Perigee", f"{perigee:.1f} km")
+                    
+                    # Advanced parameters (collapsible)
+                    with st.expander("Advanced Parameters", expanded=False):
+                        adv_col1, adv_col2 = st.columns(2)
+                        with adv_col1:
+                            raan = orbital_params.get('raan', None)
+                            if raan is not None:
+                                st.metric("RAAN", f"{raan:.2f}°")
+                            
+                            sma = orbital_params.get('semi_major_axis_km', None)
+                            if sma is not None:
+                                st.metric("Semi-major Axis", f"{sma:.1f} km")
+                        
+                        with adv_col2:
+                            arg_p = orbital_params.get('arg_perigee', None)
+                            if arg_p is not None:
+                                st.metric("Arg. of Perigee", f"{arg_p:.2f}°")
+                else:
+                    st.info("Orbital parameters not available for this satellite")
             
             st.markdown("---")
             

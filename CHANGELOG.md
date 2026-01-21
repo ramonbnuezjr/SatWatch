@@ -6,6 +6,32 @@ This document tracks significant changes, improvements, and lessons learned duri
 
 ## 2026-01-17 - UI Enhancements & Cesium Bridge MVP
 
+### ✅ UI Phases 2-4: Search, Orbital Data & Enhanced List (Dashboard)
+
+**UI Phase 2: Satellite Search**
+- Search input to filter satellites by name or NORAD ID
+- "My Satellites" quick filter button for starred items
+- Instant filtering as you type
+
+**UI Phase 3: Orbital Data Section**
+- Expandable orbital parameters panel in satellite profile
+- Displays: inclination, eccentricity, orbital period, mean motion
+- Shows apogee and perigee altitudes
+- Orbit type hints (LEO, polar, sun-synchronous, geostationary)
+- Advanced parameters section (RAAN, semi-major axis, argument of perigee)
+
+**UI Phase 4: Enhanced Satellite List**
+- Satellites grouped by type (Stations, Satellites, Debris)
+- Starred/favorite satellites pinned to top
+- Collapsible sections for each type
+- Visibility toggles (eye icons) per satellite
+- Risk indicators (green/yellow/red) for conjunction warnings
+
+**Files Changed:**
+- `src/dashboard.py` - Added `calculate_orbital_parameters()`, grouped satellite list, orbital data panel
+
+---
+
 ### ✅ Phase 1: Timeline with Datetime Picker (Dashboard)
 
 Added time controls to the Streamlit dashboard allowing users to view satellite positions at any point in time (past, present, or future).

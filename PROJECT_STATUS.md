@@ -17,15 +17,15 @@ This document tracks what's working well, challenges we've faced, and solutions 
 | **Phase 3: Multi-Satellite** | Jan 2025 | Track multiple satellites, proximity detection, color coding |
 | **Phase 4: Collision Risk** | Jan 2025 | Conjunction risk calculator with risk levels |
 | **UI Phase 1: Timeline** | Jan 2026 | Datetime picker for historical/future viewing |
+| **UI Phase 2: Search** | Jan 2026 | Filter satellites by name or NORAD ID |
+| **UI Phase 3: Orbital Data** | Jan 2026 | Display orbital parameters (inclination, period, apogee/perigee) |
+| **UI Phase 4: Enhanced List** | Jan 2026 | Visibility toggles, grouping by type, favorites |
 | **Cesium Phase 1: MVP** | Jan 2026 | CesiumJS 3D globe with time animation |
 
 ### 📋 Planned Phases
 
 | Phase | Description |
 |-------|-------------|
-| **UI Phase 2: Search** | Filter satellites by name or NORAD ID |
-| **UI Phase 3: Orbital Data** | Display orbital parameters (inclination, eccentricity, period) |
-| **UI Phase 4: Enhanced List** | Visibility toggles, grouping by type, favorites |
 | **Cesium Phase 2: Real-time** | WebSocket updates, automated position exports |
 | **Cesium Phase 3: Advanced** | Conjunction visualization, footprints, ground stations |
 | **Phase 5: Alerting** | Notifications for conjunction events |
@@ -344,18 +344,6 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed phase specifications.
 ---
 
 ## 🔄 Next Steps
-
-### Immediate Improvements (UI Phase 2)
-- [ ] Add satellite search/filter by name or NORAD ID
-- [ ] Instant filtering of satellite list in sidebar
-- [ ] Highlight matching results
-
-### Near-Term Enhancements (UI Phases 3-4)
-- [ ] Display orbital parameters in satellite profile
-- [ ] Show: inclination, eccentricity, orbital period, apogee, perigee
-- [ ] Visibility toggles (eye icons) per satellite
-- [ ] Better grouping by type (stations, satellites, debris)
-- [ ] Pin favorite satellites to top of list
 
 ### Cesium Enhancements (Phases 2-3)
 - [ ] Automated position export (cron/scheduler)

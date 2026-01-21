@@ -42,4 +42,7 @@ Thumbs.db
 data/*.cache
 data/*.tmp
 
+# Cesium skybox backup (low-res images)
+cesium/skybox/backup/
+
 # Keep validate_json.py as it's a utility script
