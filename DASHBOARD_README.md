@@ -124,6 +124,38 @@ The dashboard automatically refreshes every 10 seconds to show the latest ISS po
 - Ensure all dependencies are installed: `pip install -r requirements.txt`
 - Check that `data/iss_tle.json` exists if using local file mode
 
+### Satellites Fail to Load (Warning Messages)
+
+**Symptoms**:
+- Warning messages like: "Failed: STARLINK-1007 (44713)..."
+- Some satellites in your `satellites.json` don't appear in the list
+
+**Why This Happens**:
+
+| Reason | Description |
+|--------|-------------|
+| **Deorbited** | Satellite has re-entered atmosphere (common for Starlink) |
+| **Renamed** | Constellation satellites get new NORAD designations |
+| **Debris decayed** | Small debris burns up, removed from catalog |
+| **Not public** | Some objects restricted from public tracking |
+| **Catalog changed** | NORAD IDs occasionally get reassigned |
+
+**This is Normal**: Space objects are constantly changing. The warnings help you identify which satellites need to be updated or removed from your config.
+
+**Solution**:
+1. **Test before adding**: Verify catalog numbers work with CelesTrak:
+   ```
+   https://celestrak.org/NORAD/elements/gp.php?CATNR={id}&FORMAT=3le
+   ```
+2. **Use stable satellites**: ISS (25544), Hubble (20580), NOAA-20 (43013) rarely change
+3. **Update periodically**: Review and clean up `satellites.json` monthly
+4. **Remove failed entries**: Edit `satellites.json` to remove non-working catalog numbers
+
+**Reliable Satellites** (verified working):
+- Space Stations: ISS (25544), Tiangong (48274)
+- Earth Observation: NOAA-20 (43013), Terra (25994), Landsat 9 (49260), GOES-16 (41866)
+- Science: Hubble (20580)
+
 ### Connection Failed / Site Can't Be Reached
 
 **Symptoms**: 

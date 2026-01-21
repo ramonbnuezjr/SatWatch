@@ -36,44 +36,26 @@
       "type": "satellite"
     },
     {
-      "name": "STARLINK-1007",
-      "catnr": 44713,
-      "type": "satellite"
-    },
-    {
       "name": "STARLINK-1008",
       "catnr": 44714,
-      "type": "satellite"
-    },
-    {
-      "name": "STARLINK-1009",
-      "catnr": 44715,
-      "type": "satellite"
-    },
-    {
-      "name": "STARLINK-1010",
-      "catnr": 44716,
-      "type": "satellite"
-    },
-    {
-      "name": "STARLINK-1011",
-      "catnr": 44717,
       "type": "satellite"
     },
     {
       "name": "COSMOS 2251 DEB",
       "catnr": 34454,
       "type": "debris"
-    },
-    {
-      "name": "COSMOS 1408 DEB",
-      "catnr": 51286,
-      "type": "debris"
-    },
-    {
-      "name": "FENGYUN 1C DEB",
-      "catnr": 31141,
-      "type": "debris"
     }
-  ]
+  ],
+  "_comments": {
+    "note": "Only include satellites with verified CelesTrak availability",
+    "removed": [
+      "STARLINK-1007 (44713) - No longer tracked",
+      "STARLINK-1009 (44715) - No longer tracked", 
+      "STARLINK-1010 (44716) - No longer tracked",
+      "STARLINK-1011 (44717) - No longer tracked",
+      "COSMOS 1408 DEB (51286) - Not publicly available",
+      "FENGYUN 1C DEB (31141) - Not publicly available"
+    ],
+    "last_verified": "2026-01-17"
+  }
 }

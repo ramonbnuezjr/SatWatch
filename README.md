@@ -29,9 +29,23 @@ A Python project for tracking satellites in real-time, starting with the Interna
 - ✅ **TESTED AND VERIFIED** - Core ISS tracking and dashboard successfully tested and working
 
 ### In Progress / Known Issues ⚠️
-- ⚠️ **API Catalog Numbers** - Some catalog numbers may not be available in CelesTrak database
+- ⚠️ **Satellite Availability** - Some satellites may fail to load (see below)
 - ✅ **Multi-Satellite Position Calculations** - Fixed by switching to 3LE format (includes TLE lines)
 - ✅ **Multi-Satellite Visualization** - Should now work correctly with TLE lines available
+
+### Why Some Satellites Fail to Load
+
+When you see warnings like "Failed: STARLINK-1007 (44713)...", this is normal and expected:
+
+| Reason | Example |
+|--------|---------|
+| **Satellite deorbited** | Starlink satellites are frequently retired |
+| **Renamed/repositioned** | Constellation satellites get new designations |
+| **Debris decayed** | Small debris burns up on re-entry |
+| **Not publicly tracked** | Some objects restricted from public databases |
+| **Catalog number changed** | NORAD IDs can be reassigned |
+
+**Best Practice**: The `satellites.json` config only includes verified, stable satellites. If you add new satellites, test them first with CelesTrak: `https://celestrak.org/NORAD/elements/gp.php?CATNR={id}&FORMAT=3le`
 
 ### Current Capabilities
 - Download TLE data from CelesTrak (text or JSON)
