@@ -1522,9 +1522,9 @@ def create_3d_tracked_satellites_plot(
     
     fig.update_layout(
         scene=dict(
-            xaxis=dict(title='X (km)', range=[-axis_range, axis_range], backgroundcolor='#0e1117', gridcolor='#333'),
-            yaxis=dict(title='Y (km)', range=[-axis_range, axis_range], backgroundcolor='#0e1117', gridcolor='#333'),
-            zaxis=dict(title='Z (km)', range=[-axis_range, axis_range], backgroundcolor='#0e1117', gridcolor='#333'),
+            xaxis=dict(visible=False, range=[-axis_range, axis_range], backgroundcolor='#0e1117'),
+            yaxis=dict(visible=False, range=[-axis_range, axis_range], backgroundcolor='#0e1117'),
+            zaxis=dict(visible=False, range=[-axis_range, axis_range], backgroundcolor='#0e1117'),
             aspectmode='cube',
             camera=dict(
                 eye=dict(x=2.0, y=2.0, z=1.5),
@@ -1533,10 +1533,7 @@ def create_3d_tracked_satellites_plot(
             ),
             bgcolor='#0e1117'
         ),
-        title=dict(
-            text='Multi-Satellite 3D View',
-            font=dict(color='white', size=20)
-        ),
+        title=None,
         height=700,
         margin=dict(l=0, r=0, t=50, b=0),
         paper_bgcolor='#0e1117',
@@ -1695,9 +1692,9 @@ def create_3d_orbit_plot(position: dict, satellite, current_time, show_orbital_s
     
     fig.update_layout(
         scene=dict(
-            xaxis=dict(title='X (km)', range=[-axis_range, axis_range], backgroundcolor='#0e1117', gridcolor='#333'),
-            yaxis=dict(title='Y (km)', range=[-axis_range, axis_range], backgroundcolor='#0e1117', gridcolor='#333'),
-            zaxis=dict(title='Z (km)', range=[-axis_range, axis_range], backgroundcolor='#0e1117', gridcolor='#333'),
+            xaxis=dict(visible=False, range=[-axis_range, axis_range], backgroundcolor='#0e1117'),
+            yaxis=dict(visible=False, range=[-axis_range, axis_range], backgroundcolor='#0e1117'),
+            zaxis=dict(visible=False, range=[-axis_range, axis_range], backgroundcolor='#0e1117'),
             aspectmode='cube',
             camera=dict(
                 eye=dict(x=2.0, y=2.0, z=1.5),  # Position camera to see Earth and orbit
@@ -1749,17 +1746,13 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# Top Header Bar (matching reference images)
-header_col1, header_col2, header_col3 = st.columns([1, 3, 1])
-with header_col1:
-    st.markdown("### 🛰️ **SatWatch**")
-with header_col2:
-    # Navigation tabs (placeholder for future expansion)
-    nav_tabs = st.tabs(["Explore", "Analytics", "Settings"])
-with header_col3:
-    # Status indicators
-    st.caption("🟢 Live")
-st.markdown("---")
+# Clean Header
+st.markdown("""
+<div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; margin-bottom: 1rem;">
+    <div style="font-size: 1.5rem; font-weight: bold;">🛰️ SatWatch</div>
+    <div style="color: #00ff00; font-size: 0.9rem;">● Live</div>
+</div>
+""", unsafe_allow_html=True)
 
 # Initialize time session state BEFORE sidebar (so it's available for data loading)
 if 'live_mode' not in st.session_state:
@@ -2573,25 +2566,23 @@ if position and json_data:
             else:
                 st.success("✅ No conjunction risks detected")
         else:
-            st.info("Select a satellite from the list to view its profile")
+            # Empty state - don't show placeholder message, keep UI clean
+            pass
     
     # 3D Orbit View (main content, in left column)
     with main_col1:
-        st.subheader("🌐 Multi-Satellite 3D Orbit View")
-        
-        # Time indicator - show what time is being displayed
+        # Compact status bar
         live_mode = st.session_state.get('live_mode', True)
         if live_mode:
-            st.markdown(f"**🟢 LIVE** | {current_time.strftime('%Y-%m-%d %H:%M:%S')} UTC")
+            time_status = f"🟢 LIVE · {current_time.strftime('%Y-%m-%d %H:%M:%S')} UTC"
         else:
-            # Calculate time difference for context
             now = datetime.now(timezone.utc)
             time_diff = current_time - now
             if time_diff.total_seconds() > 0:
-                time_context = f"🔮 {abs(time_diff.days)}d {abs(time_diff.seconds // 3600)}h in future"
+                time_status = f"📅 {current_time.strftime('%Y-%m-%d %H:%M')} UTC · {abs(time_diff.days)}d {abs(time_diff.seconds // 3600)}h ahead"
             else:
-                time_context = f"📜 {abs(time_diff.days)}d {abs(time_diff.seconds // 3600)}h in past"
-            st.markdown(f"**📅 {current_time.strftime('%Y-%m-%d %H:%M:%S')} UTC** | {time_context}")
+                time_status = f"📅 {current_time.strftime('%Y-%m-%d %H:%M')} UTC · {abs(time_diff.days)}d {abs(time_diff.seconds // 3600)}h ago"
+        st.caption(time_status)
         
         # Validate position values before creating 3D plot
         if (math.isnan(position['latitude']) or 
@@ -2636,56 +2627,22 @@ if position and json_data:
                         satellite_visibility=satellite_visibility
                     )
                     
-                    # Display count based on focus mode
-                    if focus_mode:
-                        st.info(f"**Tracking {shown_count} satellites, {nearby_count} nearby objects** (within {proximity_radius} km)")
-                    else:
-                        st.info(f"**Showing {shown_count} of {total_count} tracked objects** (within {proximity_radius} km of ISS)")
-                    
+                    # Show the 3D plot first (main focus)
                     st.plotly_chart(fig_3d, use_container_width=True, key="3d_plot")
                     
-                    # Status Bar at bottom
-                    st.markdown("---")
-                    col1, col2, col3, col4 = st.columns(4)
-                    
-                    # Last conjunction check
-                    if conjunction_results and 'timestamp' in conjunction_results:
-                        try:
-                            check_time = datetime.fromisoformat(conjunction_results['timestamp'].replace('Z', '+00:00'))
-                            time_ago = current_time - check_time.replace(tzinfo=timezone.utc)
-                            hours_ago = time_ago.total_seconds() / 3600
-                            if hours_ago < 1:
-                                time_str = f"{int(time_ago.total_seconds() / 60)} minutes ago"
-                            else:
-                                time_str = f"{hours_ago:.1f} hours ago"
-                        except:
-                            time_str = conjunction_results['timestamp']
+                    # Compact satellite count caption below
+                    if focus_mode:
+                        st.caption(f"Tracking {shown_count} satellites · {nearby_count} nearby objects within {proximity_radius} km")
                     else:
-                        time_str = "Never"
+                        st.caption(f"Showing {shown_count} of {total_count} objects within {proximity_radius} km")
                     
-                    with col1:
-                        st.caption(f"**Last conjunction check:** {time_str}")
-                    
-                    # Next check (placeholder for Phase 3)
-                    with col2:
-                        st.caption("**Next check:** Scheduled (Phase 3)")
-                    
-                    # Tracking stats
+                    # Minimal status (only show if there are active risks)
                     active_risks = 0
                     if conjunction_results and 'results' in conjunction_results:
                         active_risks = len([r for r in conjunction_results['results'] if r.get('risk_level') in ['CRITICAL', 'HIGH RISK']])
                     
-                    with col3:
-                        if focus_mode:
-                            st.caption(f"**Tracking:** {shown_count} satellites | {nearby_count} nearby objects | {active_risks} active risks")
-                        else:
-                            st.caption(f"**Tracking:** {shown_count} objects | {active_risks} active risks")
-                    
-                    with col4:
-                        if active_risks > 0:
-                            st.warning(f"⚠️ {active_risks} active risk(s) detected")
-                        else:
-                            st.success("✅ No active risks")
+                    if active_risks > 0:
+                        st.warning(f"⚠️ {active_risks} active conjunction risk(s) detected")
                     
                     # Debug information to help diagnose issues
                     if shown_count == 0 and total_count > 1:
