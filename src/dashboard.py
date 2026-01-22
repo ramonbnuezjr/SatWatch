@@ -1785,16 +1785,13 @@ st.session_state.selected_time = target_time
 with st.sidebar:
     st.header("📊 ISS Status")
     
-    # Data source selection
-    use_local = st.radio(
-        "Data Source",
-        ["Local File", "CelesTrak API"],
-        index=0,
-        help="Choose to use local JSON file or download fresh data from CelesTrak"
-    )
+    # Data source: CelesTrak API (default)
+    # Developer note: Change use_local=True to use local file instead
+    # This is useful for offline testing or when API is unavailable
+    use_local = False  # Set to True for local file mode
     
     # Get ISS data (pass target_time for position calculation)
-    position, json_data, error = get_iss_data(use_local=(use_local == "Local File"), target_time=target_time)
+    position, json_data, error = get_iss_data(use_local=use_local, target_time=target_time)
     
     if error:
         st.error(f"❌ Error: {error}")
