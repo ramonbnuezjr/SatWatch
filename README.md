@@ -26,6 +26,8 @@ A Python project for tracking satellites in real-time, starting with the Interna
 - ✅ **Focus Mode** - Toggle to highlight your tracked satellites with nearby objects as secondary
 - ✅ **Timeline Controls** - View satellite positions at any date/time (past or future)
 - ✅ **CesiumJS 3D Globe** - Professional WebGL visualization with time animation
+- ✅ **Demo Mode: Full Traffic** - Display 500-1000 satellites to show space traffic density
+- ✅ **Space Statistics Panel** - Real numbers: 25,000+ tracked objects, ~500,000 debris pieces
 - ✅ **TESTED AND VERIFIED** - Core ISS tracking and dashboard successfully tested and working
 
 ### In Progress / Known Issues ⚠️

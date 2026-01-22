@@ -14,6 +14,8 @@ A real-time Streamlit dashboard for tracking the International Space Station (IS
 - 🎯 **Focus Mode**: Toggle to highlight your tracked satellites with nearby objects as secondary
 - 🛰️ **Multi-Satellite Tracking**: Track multiple satellites from your `satellites.json` configuration
 - 🌐 **3D Orbit View**: Interactive 3D visualization with Plotly showing Earth, satellites, and orbit paths
+- 🚀 **Demo Mode: Full Traffic**: Display 500-1000 active satellites to visualize space traffic density
+- 📊 **Space Statistics**: Real-world numbers showing 25,000+ tracked objects and ~500,000 debris pieces
 
 ## Installation
 
@@ -113,6 +115,32 @@ Choose between:
 - Monitor your satellite fleet while seeing nearby traffic
 - Identify potential conjunction risks with your assets
 - Focus on your satellites without visual clutter from unrelated objects
+
+### Demo Mode: Full Traffic View
+
+**Purpose**: Demonstrate the scale and density of space traffic for educational/demo purposes.
+
+**Features**:
+- **"Show Full Traffic" Toggle**: When enabled, fetches 500-1000 active satellites from CelesTrak
+- **Visual Impact**: Shows the crowded nature of Low Earth Orbit (LEO)
+- **Load Time**: Takes 10-30 seconds to fetch and process (with progress indicator)
+- **Statistics Panel**: Displays real-world numbers:
+  - **25,000+** tracked objects in space
+  - **~500,000** pieces of debris (1-10cm)
+  - **~2** ISS collision avoidance maneuvers per year
+
+**How to Use**:
+1. Check the "🚀 Show Full Traffic (Demo Mode)" checkbox in the sidebar
+2. Wait for the data to load (progress indicator will show)
+3. The 3D view will populate with hundreds of satellites showing the density
+
+**Best For**:
+- Demonstrations to stakeholders
+- Educational presentations
+- Understanding the scale of the space traffic problem
+- Visualizing why space traffic management is critical
+
+**Note**: This mode fetches live data from CelesTrak, so it requires internet connectivity and may take time to load.
 
 ## Auto-Refresh
 
