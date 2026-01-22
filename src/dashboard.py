@@ -285,29 +285,57 @@ def download_multiple_satellites(group: str = 'active', limit: int = 500):
     """
     Download TLE data for multiple satellites from CelesTrak.
     
+    Uses 3LE format to ensure TLE lines are available for position calculations.
+    
     Args:
         group: CelesTrak group name ('active', 'stations', 'starlink', 'weather', etc.)
         limit: Maximum number of satellites to download (to avoid overwhelming the visualization)
         
     Returns:
-        list: List of satellite dictionaries with TLE data
+        list: List of satellite dictionaries with TLE data (OBJECT_NAME, TLE_LINE1, TLE_LINE2, NORAD_CAT_ID)
     """
     url = "https://celestrak.org/NORAD/elements/gp.php"
     params = {
         'GROUP': group,
-        'FORMAT': 'json'
+        'FORMAT': '3le'  # Use 3LE format for reliable TLE lines
     }
     
     try:
-        response = requests.get(url, params=params, timeout=30)
+        headers = {'User-Agent': 'SatWatch/1.0 (Educational/Research Project)'}
+        response = requests.get(url, params=params, timeout=60, headers=headers)
         response.raise_for_status()
-        data = response.json()
         
-        # Limit the number of satellites
-        if limit and len(data) > limit:
-            data = data[:limit]
+        # Parse 3LE format (three lines per satellite: name, TLE line 1, TLE line 2)
+        lines = [line.strip() for line in response.text.strip().split('\n') if line.strip()]
+        satellites = []
         
-        return data
+        i = 0
+        while i < len(lines) and len(satellites) < limit:
+            if i + 2 < len(lines):
+                name_line = lines[i]
+                tle_line1 = lines[i + 1]
+                tle_line2 = lines[i + 2]
+                
+                # Validate TLE format
+                if tle_line1.startswith('1 ') and tle_line2.startswith('2 '):
+                    # Extract catalog number from TLE line 1
+                    try:
+                        catnr = int(tle_line1[2:7].strip())
+                        satellites.append({
+                            'OBJECT_NAME': name_line,
+                            'TLE_LINE1': tle_line1,
+                            'TLE_LINE2': tle_line2,
+                            'NORAD_CAT_ID': str(catnr),
+                            'OBJECT_ID': str(catnr)
+                        })
+                    except (ValueError, IndexError):
+                        pass  # Skip invalid TLE
+                
+                i += 3  # Move to next satellite
+            else:
+                break
+        
+        return satellites
     except Exception as e:
         st.warning(f"Could not download satellite data: {e}")
         return []
@@ -1518,7 +1546,8 @@ def create_3d_tracked_satellites_plot(
                 ))
     
     # Set camera angle and layout
-    axis_range = max(15000, proximity_radius_km * 2)  # Dynamic range based on proximity
+    # Use a reasonable range that shows Earth and satellites clearly
+    axis_range = max(20000, proximity_radius_km * 2)  # Ensure Earth (6371 km) is visible
     
     fig.update_layout(
         scene=dict(
@@ -1527,7 +1556,7 @@ def create_3d_tracked_satellites_plot(
             zaxis=dict(visible=False, range=[-axis_range, axis_range], backgroundcolor='#0e1117'),
             aspectmode='cube',
             camera=dict(
-                eye=dict(x=2.0, y=2.0, z=1.5),
+                eye=dict(x=1.5, y=1.5, z=1.2),  # Closer view to see Earth clearly
                 center=dict(x=0, y=0, z=0),
                 up=dict(x=0, y=0, z=1)
             ),
@@ -2213,6 +2242,37 @@ with st.sidebar:
         
         st.markdown("---")
         
+        # ========================================
+        # SPACE TRAFFIC STATISTICS (Option 3)
+        # ========================================
+        st.subheader("📊 Space Traffic Statistics")
+        stats_col1, stats_col2, stats_col3 = st.columns(3)
+        with stats_col1:
+            st.metric("Tracked Objects", "25,000+", help="Objects larger than 10cm tracked by NORAD")
+        with stats_col2:
+            st.metric("Debris Pieces", "~500,000", help="Estimated pieces of debris 1-10cm in size")
+        with stats_col3:
+            st.metric("ISS Maneuvers/Year", "~2", help="Average collision avoidance maneuvers performed by ISS")
+        
+        st.caption("💡 **The Challenge**: LEO is becoming increasingly crowded. Every launch adds to the debris cloud.")
+        st.markdown("---")
+        
+        # ========================================
+        # SHOW FULL TRAFFIC TOGGLE (Option 1)
+        # ========================================
+        show_full_traffic = st.checkbox(
+            "🚀 Show Full Traffic (Demo Mode)",
+            value=st.session_state.get('show_full_traffic', False),
+            help="Display 500-1000 active satellites to visualize the density of space traffic. Warning: May take 10-30 seconds to load.",
+            key='show_full_traffic_checkbox'
+        )
+        st.session_state.show_full_traffic = show_full_traffic
+        
+        if show_full_traffic:
+            st.info("⏳ Loading full traffic data from CelesTrak... This may take 10-30 seconds.")
+        
+        st.markdown("---")
+        
         # VIEW FILTERS (in expander, matching reference images)
         if tracked_satellites:
             with st.expander("⚙️ View Filters", expanded=False):
@@ -2605,15 +2665,59 @@ if position and json_data:
                 if tracked_satellites and satellites_tle_data:
                     # Use the new multi-satellite visualization
                     focus_mode = st.session_state.get('focus_mode', True)
+                    show_full_traffic = st.session_state.get('show_full_traffic', False)
                     
                     # Get satellite visibility state
                     satellite_visibility = st.session_state.get('satellite_visibility', {})
                     
+                    # If full traffic mode is enabled, fetch additional satellites
+                    full_traffic_data = {}
+                    if show_full_traffic:
+                        with st.spinner("Loading full traffic data (500-1000 satellites)..."):
+                            try:
+                                # Fetch active satellites from CelesTrak
+                                full_traffic_list = download_multiple_satellites(group='active', limit=1000)
+                                
+                                # Convert to the format expected by the visualization
+                                # The JSON format from CelesTrak should have TLE_LINE1 and TLE_LINE2
+                                for sat_data in full_traffic_list:
+                                    if 'TLE_LINE1' in sat_data and 'TLE_LINE2' in sat_data:
+                                        # Extract catalog number
+                                        try:
+                                            catnr = int(sat_data.get('NORAD_CAT_ID', sat_data.get('OBJECT_ID', '0')))
+                                            if catnr > 0:
+                                                full_traffic_data[catnr] = sat_data
+                                        except (ValueError, TypeError):
+                                            continue
+                                
+                                st.success(f"✓ Loaded {len(full_traffic_data)} additional satellites for full traffic view")
+                            except Exception as e:
+                                st.warning(f"Could not load full traffic data: {e}")
+                    
+                    # Merge full traffic data with tracked satellites (tracked take priority)
+                    combined_tle_data = {**full_traffic_data, **satellites_tle_data}
+                    
+                    # Create expanded tracked list for full traffic mode
+                    if show_full_traffic:
+                        # Add all full traffic satellites to tracked list for visualization
+                        expanded_tracked = list(tracked_satellites)
+                        for catnr, sat_data in full_traffic_data.items():
+                            # Skip if already in tracked list
+                            if catnr not in [s['catnr'] for s in tracked_satellites]:
+                                expanded_tracked.append({
+                                    'name': sat_data.get('OBJECT_NAME', f'Satellite {catnr}'),
+                                    'catnr': catnr,
+                                    'type': 'satellite'  # Default type
+                                })
+                        visualization_tracked = expanded_tracked
+                    else:
+                        visualization_tracked = tracked_satellites
+                    
                     fig_3d, shown_count, total_count, nearby_count = create_3d_tracked_satellites_plot(
                         position,
                         satellite,
-                        tracked_satellites,
-                        satellites_tle_data,
+                        visualization_tracked,
+                        combined_tle_data,
                         current_time,
                         show_stations=show_stations,
                         show_satellites=show_satellites,
