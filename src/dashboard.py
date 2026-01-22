@@ -13,6 +13,7 @@ from pathlib import Path
 from datetime import datetime, timezone, timedelta
 from typing import List, Tuple, Optional
 import math
+import time
 import streamlit as st
 import folium
 from streamlit_folium import st_folium
@@ -303,8 +304,20 @@ def download_multiple_satellites(group: str = 'active', limit: int = 50):
     
     try:
         headers = {'User-Agent': 'SatWatch/1.0 (Educational/Research Project)'}
+        
+        # Add small delay to avoid rate limiting (CelesTrak may throttle rapid requests)
+        time.sleep(0.5)  # 500ms delay to be respectful to CelesTrak
+        
         # Reduced timeout for faster failure (5s instead of 60s)
         response = requests.get(url, params=params, timeout=5, headers=headers)
+        
+        # Handle 403 Forbidden (rate limiting)
+        if response.status_code == 403:
+            raise requests.RequestException(
+                "CelesTrak is rate-limiting requests. Please wait a few minutes and try again, "
+                "or reduce the traffic density slider."
+            )
+        
         response.raise_for_status()
         
         # Parse 3LE format (three lines per satellite: name, TLE line 1, TLE line 2)
@@ -1831,6 +1844,15 @@ with st.sidebar:
     
     if error:
         st.error(f"❌ Error: {error}")
+        
+        # Check if local file exists as fallback
+        import os
+        local_file = Path(__file__).parent.parent / 'data' / 'iss_tle.json'
+        if local_file.exists():
+            st.info("💡 **Tip**: A local TLE file exists. To use it, edit `src/dashboard.py` line 1827 and change `use_local = False` to `use_local = True`")
+        else:
+            st.info("💡 **Tip**: CelesTrak may be rate-limiting requests. Wait a few minutes and refresh, or download fresh TLE data manually.")
+        
         st.stop()
     
     if position and json_data:

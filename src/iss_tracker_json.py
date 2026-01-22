@@ -69,46 +69,81 @@ def load_iss_tle_from_file(file_path: str = None) -> dict:
 
 def download_iss_tle_json() -> dict:
     """
-    Download the current TLE data for the ISS from CelesTrak JSON API.
+    Download the current TLE data for the ISS from CelesTrak.
     
-    CelesTrak provides TLE data in JSON format. The JSON contains:
-    - OBJECT_NAME: Satellite name
-    - OBJECT_ID: NORAD catalog ID
-    - TLE_LINE1: First line of TLE data
-    - TLE_LINE2: Second line of TLE data
-    - EPOCH: Time when the TLE data is valid
+    Tries multiple formats and methods with fallbacks:
+    1. JSON format (GROUP=stations)
+    2. 3LE format (CATNR=25544) - more reliable, less likely to be rate-limited
+    3. Raises error if all methods fail
     
     Returns:
         dict: JSON data containing TLE information for the ISS
         
     Raises:
-        requests.RequestException: If the download fails
+        requests.RequestException: If all download attempts fail
         ValueError: If ISS data is not found
     """
-    # CelesTrak JSON API endpoint for space stations
-    # Format: https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=json
-    url = "https://celestrak.org/NORAD/elements/gp.php"
-    params = {
-        'GROUP': 'stations',  # Space stations group (includes ISS)
-        'FORMAT': 'json'      # Request JSON format
+    headers = {
+        'User-Agent': 'SatWatch/1.0 (Educational/Research Project)'
     }
+    url = "https://celestrak.org/NORAD/elements/gp.php"
     
-    # Download the JSON data
-    response = requests.get(url, params=params, timeout=10)
-    response.raise_for_status()  # Raise an error if download failed
+    # Method 1: Try 3LE format by catalog number (most reliable, less likely to be rate-limited)
+    try:
+        params_3le = {
+            'CATNR': 25544,  # ISS catalog number
+            'FORMAT': '3le'
+        }
+        response = requests.get(url, params=params_3le, timeout=10, headers=headers)
+        
+        if response.status_code == 200 and response.text:
+            # Parse 3LE format (three lines: name, TLE line 1, TLE line 2)
+            lines = [line.strip() for line in response.text.strip().split('\n') if line.strip()]
+            if len(lines) >= 3:
+                name_line = lines[0]
+                tle_line1 = lines[1]
+                tle_line2 = lines[2]
+                
+                # Validate TLE format
+                if tle_line1.startswith('1 ') and tle_line2.startswith('2 '):
+                    # Convert to JSON-like format
+                    return {
+                        'OBJECT_NAME': name_line,
+                        'OBJECT_ID': '25544',
+                        'NORAD_CAT_ID': '25544',
+                        'TLE_LINE1': tle_line1,
+                        'TLE_LINE2': tle_line2,
+                        'EPOCH': None  # Will be extracted from TLE if needed
+                    }
+    except Exception:
+        pass  # Fall through to next method
     
-    # Parse the JSON response
-    data = response.json()
+    # Method 2: Try JSON format (GROUP=stations) - may be rate-limited
+    try:
+        params_json = {
+            'GROUP': 'stations',
+            'FORMAT': 'json'
+        }
+        response = requests.get(url, params=params_json, timeout=10, headers=headers)
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+            # Find the ISS entry (NORAD ID 25544)
+            for satellite in data:
+                if (satellite.get('OBJECT_ID') == '25544' or 
+                    satellite.get('NORAD_CAT_ID') == '25544' or
+                    'ISS' in satellite.get('OBJECT_NAME', '').upper()):
+                    return satellite
+    except Exception:
+        pass  # Fall through to error
     
-    # Find the ISS entry (NORAD ID 25544)
-    for satellite in data:
-        # Check if this is the ISS by NORAD ID or name
-        if (satellite.get('OBJECT_ID') == '25544' or 
-            'ISS' in satellite.get('OBJECT_NAME', '').upper()):
-            return satellite
-    
-    # If ISS not found, raise an error
-    raise ValueError("ISS TLE data not found in JSON response")
+    # If all methods failed, raise an error
+    raise requests.RequestException(
+        "Could not download ISS TLE data from CelesTrak. "
+        "The service may be temporarily unavailable or rate-limiting requests. "
+        "Try again in a few moments, or use local file mode."
+    )
 
 
 def format_tle_line1(norad_id: int, classification: str, element_set_no: int, 
