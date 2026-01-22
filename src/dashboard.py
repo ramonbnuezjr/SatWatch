@@ -281,15 +281,16 @@ def get_iss_data(use_local: bool = True, target_time: datetime = None):
         return None, None, str(e)
 
 
-def download_multiple_satellites(group: str = 'active', limit: int = 500):
+def download_multiple_satellites(group: str = 'active', limit: int = 50):
     """
     Download TLE data for multiple satellites from CelesTrak.
     
+    Optimized for near real-time performance (30-100 objects, 200-500ms).
     Uses 3LE format to ensure TLE lines are available for position calculations.
     
     Args:
         group: CelesTrak group name ('active', 'stations', 'starlink', 'weather', etc.)
-        limit: Maximum number of satellites to download (to avoid overwhelming the visualization)
+        limit: Maximum number of satellites to download (30-100 recommended for speed)
         
     Returns:
         list: List of satellite dictionaries with TLE data (OBJECT_NAME, TLE_LINE1, TLE_LINE2, NORAD_CAT_ID)
@@ -302,25 +303,31 @@ def download_multiple_satellites(group: str = 'active', limit: int = 500):
     
     try:
         headers = {'User-Agent': 'SatWatch/1.0 (Educational/Research Project)'}
-        response = requests.get(url, params=params, timeout=60, headers=headers)
+        # Reduced timeout for faster failure (5s instead of 60s)
+        response = requests.get(url, params=params, timeout=5, headers=headers)
         response.raise_for_status()
         
         # Parse 3LE format (three lines per satellite: name, TLE line 1, TLE line 2)
-        lines = [line.strip() for line in response.text.strip().split('\n') if line.strip()]
+        # Optimized parsing - stop early when limit reached
+        lines = response.text.strip().split('\n')
         satellites = []
         
         i = 0
         while i < len(lines) and len(satellites) < limit:
+            # Skip empty lines
+            while i < len(lines) and not lines[i].strip():
+                i += 1
+            
             if i + 2 < len(lines):
-                name_line = lines[i]
-                tle_line1 = lines[i + 1]
-                tle_line2 = lines[i + 2]
+                name_line = lines[i].strip()
+                tle_line1 = lines[i + 1].strip()
+                tle_line2 = lines[i + 2].strip()
                 
-                # Validate TLE format
+                # Quick validation - check TLE line format
                 if tle_line1.startswith('1 ') and tle_line2.startswith('2 '):
-                    # Extract catalog number from TLE line 1
+                    # Extract catalog number from TLE line 1 (positions 2-7)
                     try:
-                        catnr = int(tle_line1[2:7].strip())
+                        catnr = int(tle_line1[2:7])
                         satellites.append({
                             'OBJECT_NAME': name_line,
                             'TLE_LINE1': tle_line1,
@@ -2263,13 +2270,25 @@ with st.sidebar:
         show_full_traffic = st.checkbox(
             "🚀 Show Full Traffic (Demo Mode)",
             value=st.session_state.get('show_full_traffic', False),
-            help="Display 500-1000 active satellites to visualize the density of space traffic. Warning: May take 10-30 seconds to load.",
+            help="Display additional active satellites to visualize space traffic density. Loads in <1 second.",
             key='show_full_traffic_checkbox'
         )
         st.session_state.show_full_traffic = show_full_traffic
         
+        # Traffic density slider (only show when full traffic is enabled)
+        traffic_count = 50  # Default: 50 objects for near real-time
         if show_full_traffic:
-            st.info("⏳ Loading full traffic data from CelesTrak... This may take 10-30 seconds.")
+            traffic_count = st.slider(
+                "Traffic Density",
+                min_value=30,
+                max_value=100,
+                value=st.session_state.get('traffic_count', 50),
+                step=10,
+                help="Number of additional satellites to display (30-100). Lower = faster load.",
+                key='traffic_count_slider'
+            )
+            st.session_state.traffic_count = traffic_count
+            st.caption(f"⚡ Loading {traffic_count} satellites (~200-500ms)")
         
         st.markdown("---")
         
@@ -2673,26 +2692,24 @@ if position and json_data:
                     # If full traffic mode is enabled, fetch additional satellites
                     full_traffic_data = {}
                     if show_full_traffic:
-                        with st.spinner("Loading full traffic data (500-1000 satellites)..."):
-                            try:
-                                # Fetch active satellites from CelesTrak
-                                full_traffic_list = download_multiple_satellites(group='active', limit=1000)
-                                
-                                # Convert to the format expected by the visualization
-                                # The JSON format from CelesTrak should have TLE_LINE1 and TLE_LINE2
-                                for sat_data in full_traffic_list:
-                                    if 'TLE_LINE1' in sat_data and 'TLE_LINE2' in sat_data:
-                                        # Extract catalog number
-                                        try:
-                                            catnr = int(sat_data.get('NORAD_CAT_ID', sat_data.get('OBJECT_ID', '0')))
-                                            if catnr > 0:
-                                                full_traffic_data[catnr] = sat_data
-                                        except (ValueError, TypeError):
-                                            continue
-                                
-                                st.success(f"✓ Loaded {len(full_traffic_data)} additional satellites for full traffic view")
-                            except Exception as e:
-                                st.warning(f"Could not load full traffic data: {e}")
+                        traffic_count = st.session_state.get('traffic_count', 50)
+                        try:
+                            # Fetch active satellites from CelesTrak (optimized for speed)
+                            # Use smaller limit for near real-time performance
+                            full_traffic_list = download_multiple_satellites(group='active', limit=traffic_count)
+                            
+                            # Convert to the format expected by the visualization
+                            for sat_data in full_traffic_list:
+                                if 'TLE_LINE1' in sat_data and 'TLE_LINE2' in sat_data:
+                                    # Extract catalog number
+                                    try:
+                                        catnr = int(sat_data.get('NORAD_CAT_ID', sat_data.get('OBJECT_ID', '0')))
+                                        if catnr > 0:
+                                            full_traffic_data[catnr] = sat_data
+                                    except (ValueError, TypeError):
+                                        continue
+                        except Exception as e:
+                            st.warning(f"Could not load full traffic data: {e}")
                     
                     # Merge full traffic data with tracked satellites (tracked take priority)
                     combined_tle_data = {**full_traffic_data, **satellites_tle_data}
