@@ -32,6 +32,7 @@ A Python project for tracking satellites in real-time, starting with the Interna
 
 ### In Progress / Known Issues ⚠️
 - ⚠️ **Satellite Availability** - Some satellites may fail to load (see below)
+- ⚠️ **CelesTrak Rate Limiting** - May temporarily block requests if too many are made (see below)
 - ✅ **Multi-Satellite Position Calculations** - Fixed by switching to 3LE format (includes TLE lines)
 - ✅ **Multi-Satellite Visualization** - Should now work correctly with TLE lines available
 
@@ -48,6 +49,24 @@ When you see warnings like "Failed: STARLINK-1007 (44713)...", this is normal an
 | **Catalog number changed** | NORAD IDs can be reassigned |
 
 **Best Practice**: The `satellites.json` config only includes verified, stable satellites. If you add new satellites, test them first with CelesTrak: `https://celestrak.org/NORAD/elements/gp.php?CATNR={id}&FORMAT=3le`
+
+### CelesTrak Rate Limiting
+
+If you see errors like "403 Client Error: Forbidden" or "Could not download ISS TLE data":
+
+| Cause | Solution |
+|-------|----------|
+| **Too many requests** | Wait 15-30 minutes, then refresh |
+| **Rapid testing** | Space out requests, don't toggle "Show Full Traffic" rapidly |
+| **Need immediate access** | Temporarily use local file mode (edit `src/dashboard.py` line 1827: `use_local = True`) |
+
+**The system automatically:**
+- Tries 3LE format first (more reliable, less rate-limited)
+- Falls back to JSON format if needed
+- Includes User-Agent headers
+- Adds delays between requests to be respectful
+
+See [DASHBOARD_README.md](DASHBOARD_README.md) for detailed troubleshooting.
 
 ### Current Capabilities
 - Download TLE data from CelesTrak (text or JSON)

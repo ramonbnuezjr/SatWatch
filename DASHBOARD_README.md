@@ -121,9 +121,10 @@ Choose between:
 **Purpose**: Demonstrate the scale and density of space traffic for educational/demo purposes.
 
 **Features**:
-- **"Show Full Traffic" Toggle**: When enabled, fetches 500-1000 active satellites from CelesTrak
+- **"Show Full Traffic" Toggle**: When enabled, fetches 30-100 active satellites from CelesTrak
+- **Traffic Density Slider**: Adjustable 30-100 objects (default: 50)
 - **Visual Impact**: Shows the crowded nature of Low Earth Orbit (LEO)
-- **Load Time**: Takes 10-30 seconds to fetch and process (with progress indicator)
+- **Load Time**: Optimized for 200-500ms (near real-time)
 - **Statistics Panel**: Displays real-world numbers:
   - **25,000+** tracked objects in space
   - **~500,000** pieces of debris (1-10cm)
@@ -140,7 +141,7 @@ Choose between:
 - Understanding the scale of the space traffic problem
 - Visualizing why space traffic management is critical
 
-**Note**: This mode fetches live data from CelesTrak, so it requires internet connectivity and may take time to load.
+**Note**: This mode fetches live data from CelesTrak, so it requires internet connectivity. Load time is optimized for 30-100 objects (200-500ms).
 
 ## Auto-Refresh
 
@@ -183,6 +184,45 @@ The dashboard automatically refreshes every 10 seconds to show the latest ISS po
 - Space Stations: ISS (25544), Tiangong (48274)
 - Earth Observation: NOAA-20 (43013), Terra (25994), Landsat 9 (49260), GOES-16 (41866)
 - Science: Hubble (20580)
+
+### CelesTrak Rate Limiting (403 Forbidden Error)
+
+**Symptoms**:
+- Error: "403 Client Error: Forbidden for url: https://celestrak.org/..."
+- Error: "Could not download ISS TLE data from CelesTrak"
+- Dashboard stops loading
+
+**Why This Happens**:
+- CelesTrak may rate-limit requests if you make too many in a short time
+- Common when testing "Show Full Traffic" mode repeatedly
+- CelesTrak protects their servers from excessive requests
+
+**Solutions**:
+
+1. **Wait and Retry** (Recommended):
+   - Rate limits typically expire after 15-30 minutes
+   - Wait a few minutes, then refresh the dashboard
+   - The system automatically tries 3LE format first (more reliable)
+
+2. **Use Local File Mode** (Temporary):
+   - Edit `src/dashboard.py` line 1827
+   - Change `use_local = False` to `use_local = True`
+   - This uses `data/iss_tle.json` (may be a few days old)
+   - Switch back to API mode later for fresh data
+
+3. **Reduce Traffic Density**:
+   - If using "Show Full Traffic", reduce the slider to 30-50 objects
+   - Fewer requests = less likely to trigger rate limits
+
+4. **Be Respectful**:
+   - The code includes a 500ms delay between requests
+   - Don't rapidly toggle "Show Full Traffic" on/off
+   - Space out your requests
+
+**Prevention**:
+- The dashboard uses 3LE format by catalog number (less likely to be rate-limited)
+- User-Agent headers are included in all requests
+- Automatic fallback to alternative formats if one fails
 
 ### Connection Failed / Site Can't Be Reached
 
