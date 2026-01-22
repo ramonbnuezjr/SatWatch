@@ -2247,8 +2247,8 @@ with st.sidebar:
                 proximity_radius = st.slider(
                     "Proximity Radius (km)",
                     min_value=100,
-                    max_value=5000,
-                    value=st.session_state.get('proximity_radius', 1000),
+                    max_value=10000,
+                    value=st.session_state.get('proximity_radius', 5000),
                     step=100,
                     help="Show objects within this distance",
                     key='proximity_radius_slider'
@@ -2257,10 +2257,10 @@ with st.sidebar:
                 
                 st.markdown("---")
                 
-                # Focus Mode toggle
+                # Focus Mode toggle (ON by default for demo)
                 focus_mode = st.checkbox(
                     "Focus on my satellites",
-                    value=st.session_state.get('focus_mode', False),
+                    value=st.session_state.get('focus_mode', True),
                     help="When ON: Show your tracked satellites prominently with nearby objects as secondary. When OFF: Show all objects equally.",
                     key='focus_mode_checkbox'
                 )
@@ -2272,8 +2272,8 @@ with st.sidebar:
             show_stations = True
             show_satellites = True
             show_debris = True
-            proximity_radius = 1000
-            focus_mode = False
+            proximity_radius = 5000  # Larger radius for demo
+            focus_mode = True  # ON by default for demo
             st.session_state.show_stations = show_stations
             st.session_state.show_satellites = show_satellites
             st.session_state.show_debris = show_debris
@@ -2326,8 +2326,8 @@ if position and json_data:
     show_stations = st.session_state.get('show_stations', True)
     show_satellites = st.session_state.get('show_satellites', True)
     show_debris = st.session_state.get('show_debris', True)
-    proximity_radius = st.session_state.get('proximity_radius', 1000)
-    focus_mode = st.session_state.get('focus_mode', False)
+    proximity_radius = st.session_state.get('proximity_radius', 5000)
+    focus_mode = st.session_state.get('focus_mode', True)
     
     # Load conjunction results
     conjunction_results = load_conjunction_results()
@@ -2604,7 +2604,7 @@ if position and json_data:
                 # Check if we have tracked satellites to show
                 if tracked_satellites and satellites_tle_data:
                     # Use the new multi-satellite visualization
-                    focus_mode = st.session_state.get('focus_mode', False)
+                    focus_mode = st.session_state.get('focus_mode', True)
                     
                     # Get satellite visibility state
                     satellite_visibility = st.session_state.get('satellite_visibility', {})
