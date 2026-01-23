@@ -9,10 +9,13 @@ This document tracks significant changes, improvements, and lessons learned duri
 ### ✅ Demo Mode: Full Traffic View & Space Statistics
 
 **Full Traffic Visualization:**
-- "Show Full Traffic" toggle to display 500-1000 active satellites
+- "Show Full Traffic" toggle to display 30-100 active satellites (user-selectable)
+- Traffic density slider (30-100 objects, default: 50)
 - Demonstrates the density and clutter of space traffic
 - Fetches from CelesTrak using 3LE format for reliable TLE data
-- 10-30 second load time with progress indicator
+- **Optimized Performance**: 200-500ms load time (near real-time)
+- **Smart Caching**: Data cached in session state to prevent refresh loops
+- **Smooth Interaction**: Zoom/rotate 3D plot without triggering refetches
 
 **Space Traffic Statistics Panel:**
 - Real-world numbers: 25,000+ tracked objects, ~500,000 debris pieces
@@ -21,8 +24,13 @@ This document tracks significant changes, improvements, and lessons learned duri
 
 **Purpose:** Makes the demo impactful by showing the scale of the problem, not just 9 objects.
 
+**Performance Improvements:**
+- Reduced from 1000 to 50 default objects for faster loading
+- Added caching to prevent refresh loops on 3D plot interactions
+- Only refetches when traffic count changes, not on every rerun
+
 **Files Changed:**
-- `src/dashboard.py` - Added statistics panel, full traffic toggle, modified `download_multiple_satellites()` to use 3LE format
+- `src/dashboard.py` - Added statistics panel, full traffic toggle with caching, modified `download_multiple_satellites()` to use 3LE format
 
 ---
 

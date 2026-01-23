@@ -132,8 +132,15 @@ Choose between:
 
 **How to Use**:
 1. Check the "🚀 Show Full Traffic (Demo Mode)" checkbox in the sidebar
-2. Wait for the data to load (progress indicator will show)
-3. The 3D view will populate with hundreds of satellites showing the density
+2. Adjust the "Traffic Density" slider (30-100 objects, default: 50)
+3. Data loads once (~200-500ms) and is cached for smooth interaction
+4. The 3D view will populate with satellites showing the density
+
+**Performance & Caching**:
+- **Smart Caching**: Data is fetched once and cached in session state
+- **No Refresh Loops**: You can zoom/rotate the 3D plot without triggering refetches
+- **Automatic Updates**: Only refetches if you change the traffic count slider
+- **Smooth Interaction**: Cached data allows seamless 3D plot manipulation
 
 **Best For**:
 - Demonstrations to stakeholders
@@ -141,7 +148,7 @@ Choose between:
 - Understanding the scale of the space traffic problem
 - Visualizing why space traffic management is critical
 
-**Note**: This mode fetches live data from CelesTrak, so it requires internet connectivity. Load time is optimized for 30-100 objects (200-500ms).
+**Note**: This mode fetches live data from CelesTrak, so it requires internet connectivity. Load time is optimized for 30-100 objects (200-500ms). Data is cached to prevent refresh loops when interacting with the 3D visualization.
 
 ## Auto-Refresh
 
@@ -223,6 +230,29 @@ The dashboard automatically refreshes every 10 seconds to show the latest ISS po
 - The dashboard uses 3LE format by catalog number (less likely to be rate-limited)
 - User-Agent headers are included in all requests
 - Automatic fallback to alternative formats if one fails
+
+### Dashboard Refreshing Continuously (Refresh Loop)
+
+**Symptoms**:
+- Page keeps refreshing when zooming/rotating the 3D plot
+- "Show Full Traffic" data appears to reload repeatedly
+- Dashboard feels unresponsive during 3D plot interactions
+
+**Why This Happens** (Fixed):
+- Previously: Full traffic data was refetched on every Streamlit rerun
+- Zoom/pan interactions triggered reruns, causing data refetch loops
+- **This has been fixed with smart caching**
+
+**Current Behavior** (After Fix):
+- Full traffic data is cached in session state after first load
+- Zoom/rotate interactions use cached data (no refetch)
+- Only refetches when you change the traffic count slider
+- Smooth, responsive 3D plot interactions
+
+**If You Still Experience Issues**:
+1. Clear browser cache and refresh
+2. Disable and re-enable "Show Full Traffic" to reset cache
+3. Check browser console for JavaScript errors
 
 ### Connection Failed / Site Can't Be Reached
 
