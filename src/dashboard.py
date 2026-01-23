@@ -2711,27 +2711,55 @@ if position and json_data:
                     # Get satellite visibility state
                     satellite_visibility = st.session_state.get('satellite_visibility', {})
                     
-                    # If full traffic mode is enabled, fetch additional satellites
+                    # If full traffic mode is enabled, fetch additional satellites (with caching)
                     full_traffic_data = {}
                     if show_full_traffic:
                         traffic_count = st.session_state.get('traffic_count', 50)
-                        try:
-                            # Fetch active satellites from CelesTrak (optimized for speed)
-                            # Use smaller limit for near real-time performance
-                            full_traffic_list = download_multiple_satellites(group='active', limit=traffic_count)
-                            
-                            # Convert to the format expected by the visualization
-                            for sat_data in full_traffic_list:
-                                if 'TLE_LINE1' in sat_data and 'TLE_LINE2' in sat_data:
-                                    # Extract catalog number
-                                    try:
-                                        catnr = int(sat_data.get('NORAD_CAT_ID', sat_data.get('OBJECT_ID', '0')))
-                                        if catnr > 0:
-                                            full_traffic_data[catnr] = sat_data
-                                    except (ValueError, TypeError):
-                                        continue
-                        except Exception as e:
-                            st.warning(f"Could not load full traffic data: {e}")
+                        
+                        # Check if we have cached data for this count
+                        cache_key = f'full_traffic_data_{traffic_count}'
+                        cached_traffic = st.session_state.get(cache_key)
+                        cached_count = st.session_state.get('cached_traffic_count')
+                        
+                        # Only fetch if we don't have cached data or count changed
+                        if cached_traffic and cached_count == traffic_count:
+                            # Use cached data - no refetch needed
+                            full_traffic_data = cached_traffic
+                        else:
+                            # Fetch fresh data
+                            try:
+                                # Fetch active satellites from CelesTrak (optimized for speed)
+                                full_traffic_list = download_multiple_satellites(group='active', limit=traffic_count)
+                                
+                                # Convert to the format expected by the visualization
+                                for sat_data in full_traffic_list:
+                                    if 'TLE_LINE1' in sat_data and 'TLE_LINE2' in sat_data:
+                                        # Extract catalog number
+                                        try:
+                                            catnr = int(sat_data.get('NORAD_CAT_ID', sat_data.get('OBJECT_ID', '0')))
+                                            if catnr > 0:
+                                                full_traffic_data[catnr] = sat_data
+                                        except (ValueError, TypeError):
+                                            continue
+                                
+                                # Cache the data for future reruns
+                                st.session_state[cache_key] = full_traffic_data
+                                st.session_state['cached_traffic_count'] = traffic_count
+                            except Exception as e:
+                                # If fetch fails, try to use cached data if available
+                                if cached_traffic:
+                                    full_traffic_data = cached_traffic
+                                    st.warning(f"Using cached traffic data (fetch failed: {e})")
+                                else:
+                                    st.warning(f"Could not load full traffic data: {e}")
+                    else:
+                        # Clear cache when full traffic is disabled
+                        if 'cached_traffic_count' in st.session_state:
+                            del st.session_state['cached_traffic_count']
+                            # Clear all cached traffic keys
+                            keys_to_remove = [k for k in st.session_state.keys() if k.startswith('full_traffic_data_')]
+                            for key in keys_to_remove:
+                                del st.session_state[key]
                     
                     # Merge full traffic data with tracked satellites (tracked take priority)
                     combined_tle_data = {**full_traffic_data, **satellites_tle_data}
