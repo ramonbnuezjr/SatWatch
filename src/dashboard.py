@@ -1576,7 +1576,7 @@ def create_3d_tracked_satellites_plot(
             zaxis=dict(visible=False, range=[-axis_range, axis_range], backgroundcolor='#0e1117'),
             aspectmode='cube',
             camera=dict(
-                eye=dict(x=1.5, y=1.5, z=1.2),  # Closer view to see Earth clearly
+                eye=dict(x=0.35, y=0.35, z=0.3),  # Maximized Earth view for demo
                 center=dict(x=0, y=0, z=0),
                 up=dict(x=0, y=0, z=1)
             ),
@@ -2291,7 +2291,7 @@ with st.sidebar:
         # ========================================
         show_full_traffic = st.checkbox(
             "🚀 Show Full Traffic (Demo Mode)",
-            value=st.session_state.get('show_full_traffic', False),
+            value=st.session_state.get('show_full_traffic', True),  # Default: enabled for demo
             help="Display additional active satellites to visualize space traffic density. Loads in <1 second.",
             key='show_full_traffic_checkbox'
         )
@@ -2475,29 +2475,29 @@ if position and json_data:
             if sat_info and sat_tle_data:
                 # Profile Panel Header (matching reference images)
                 profile_header_col1, profile_header_col2 = st.columns([4, 1])
-            with profile_header_col1:
-                st.subheader("🛰️ SATELLITE PROFILE")
-                st.markdown(f"**{sat_info['name']}**")
-                st.caption(f"NORAD ID: {selected_catnr}")
-            with profile_header_col2:
-                # Star button to add to watched list
-                is_watched = selected_catnr in st.session_state.get('watched_satellites', [])
-                star_icon = "⭐" if is_watched else "☆"
-                if st.button(star_icon, key=f"star_{selected_catnr}", help="Add to watched list"):
-                    watched = st.session_state.get('watched_satellites', [])
-                    if is_watched:
-                        watched.remove(selected_catnr)
-                    else:
-                        if selected_catnr not in watched:
-                            watched.append(selected_catnr)
-                    st.session_state.watched_satellites = watched
-                    st.rerun()
-                # Close button
-                if st.button("✕", key=f"close_{selected_catnr}", help="Close profile"):
-                    st.session_state.selected_satellite = None
-                    st.rerun()
-            
-            st.markdown("---")
+                with profile_header_col1:
+                    st.subheader("🛰️ SATELLITE PROFILE")
+                    st.markdown(f"**{sat_info['name']}**")
+                    st.caption(f"NORAD ID: {selected_catnr}")
+                with profile_header_col2:
+                    # Star button to add to watched list
+                    is_watched = selected_catnr in st.session_state.get('watched_satellites', [])
+                    star_icon = "⭐" if is_watched else "☆"
+                    if st.button(star_icon, key=f"star_{selected_catnr}", help="Add to watched list"):
+                        watched = st.session_state.get('watched_satellites', [])
+                        if is_watched:
+                            watched.remove(selected_catnr)
+                        else:
+                            if selected_catnr not in watched:
+                                watched.append(selected_catnr)
+                        st.session_state.watched_satellites = watched
+                        st.rerun()
+                    # Close button
+                    if st.button("✕", key=f"close_{selected_catnr}", help="Close profile"):
+                        st.session_state.selected_satellite = None
+                        st.rerun()
+                
+                st.markdown("---")
             
             # General Information
             st.markdown("**General Information**")
