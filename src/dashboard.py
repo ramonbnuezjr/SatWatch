@@ -1837,7 +1837,7 @@ with st.sidebar:
     # Data source: CelesTrak API (default)
     # Developer note: Change use_local=True to use local file instead
     # This is useful for offline testing or when API is unavailable
-    use_local = False  # Set to True for local file mode
+    use_local = False  # Default: Use CelesTrak API
     
     # Get ISS data (pass target_time for position calculation)
     position, json_data, error = get_iss_data(use_local=use_local, target_time=target_time)
@@ -1870,7 +1870,8 @@ with st.sidebar:
         # Fetch TLE data for tracked satellites
         satellites_tle_data = {}
         loaded_satellites = []  # Track which satellites loaded successfully
-        if tracked_satellites:
+        if tracked_satellites and not use_local:
+            # Only fetch from API if not in local mode
             with st.spinner("Loading tracked satellites..."):
                 catnr_list = [sat['catnr'] for sat in tracked_satellites]
                 fetched_satellites = fetch_satellites(catnr_list)
@@ -1944,8 +1945,18 @@ with st.sidebar:
             # Store in session state for use in main content area
             st.session_state.tracked_satellites = tracked_satellites
             st.session_state.satellites_tle_data = satellites_tle_data
+        elif use_local and tracked_satellites:
+            # Local mode: Only use ISS data, skip API calls
+            st.info("📁 **Local Mode**: Using cached ISS data only (API disabled)")
+            iss_catnr = 25544
+            satellites_tle_data[iss_catnr] = json_data
+            loaded_satellites.append(iss_catnr)
+            # Filter tracked satellites to only ISS for local mode
+            iss_tracked = [sat for sat in tracked_satellites if sat['catnr'] == iss_catnr]
+            st.session_state.tracked_satellites = iss_tracked if iss_tracked else [{'name': 'ISS', 'catnr': 25544, 'type': 'station'}]
+            st.session_state.satellites_tle_data = satellites_tle_data
         else:
-            # Clear session state if no tracked satellites
+            # No tracked satellites
             st.session_state.tracked_satellites = []
             st.session_state.satellites_tle_data = {}
         # ========================================
@@ -2059,22 +2070,27 @@ with st.sidebar:
         
         # TLE Data Info
         st.subheader("📡 TLE Data")
-        epoch = json_data.get('EPOCH', 'Unknown')
-        st.text(f"Epoch: {epoch}")
+        epoch = json_data.get('EPOCH')
         
-        # Data freshness with graduated warnings
-        status_level, hours_old, status_message = get_data_freshness_status(epoch)
-        
-        if status_level == 'fresh':
-            st.success(f"✅ {status_message}")
-        elif status_level == 'warning':
-            st.warning(f"⚠️ {status_message}")
-        elif status_level == 'old':
-            st.warning(f"⚠️ {status_message}")
-        else:  # expired
-            st.error(f"❌ {status_message}")
-        
-        st.caption("TLE data is typically valid for ~2 weeks")
+        if epoch and epoch != 'Unknown':
+            st.text(f"Epoch: {epoch}")
+            
+            # Data freshness with graduated warnings
+            status_level, hours_old, status_message = get_data_freshness_status(epoch)
+            
+            if status_level == 'fresh':
+                st.success(f"✅ {status_message}")
+            elif status_level == 'warning':
+                st.warning(f"⚠️ {status_message}")
+            elif status_level == 'old':
+                st.warning(f"⚠️ {status_message}")
+            else:  # expired
+                st.error(f"❌ {status_message}")
+            
+            st.caption("TLE data is typically valid for ~2 weeks")
+        else:
+            st.info("ℹ️ TLE data loaded successfully")
+            st.caption("Epoch information not available in current data format")
         
         st.markdown("---")
         

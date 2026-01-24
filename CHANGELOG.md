@@ -4,6 +4,49 @@ This document tracks significant changes, improvements, and lessons learned duri
 
 ---
 
+## 2026-01-23 - Demo Experience & TLE Data Improvements
+
+### ✅ Enhanced Demo Experience
+
+**Optimized Initial View:**
+- Camera position adjusted (0.35, 0.35, 0.3) for maximized Earth view on page load
+- Earth now fills most of the viewport for impressive first impression
+- "Show Full Traffic (Demo Mode)" enabled by default
+- Traffic density defaults to 50 satellites for optimal demo experience
+
+**Fixed Profile Panel:**
+- Corrected indentation bugs in satellite profile panel code
+- Profile header columns now properly nested
+
+### ✅ TLE Epoch Extraction Fix
+
+**Problem Solved:** "Unable to determine data age" error when using 3LE format
+
+**Solution:**
+- Added `extract_epoch_from_tle_line1()` function to parse epoch from TLE Line 1
+- TLE Line 1 characters 18-32 contain epoch as YYDDD.DDDDDDDD format
+- Epoch is now properly extracted and displayed even with 3LE data format
+
+**Improved Epoch Display:**
+- Graceful handling when epoch is unavailable
+- Shows friendly info message instead of error: "TLE data loaded successfully"
+- Caption explains: "Epoch information not available in current data format"
+
+### ✅ Local Mode for Rate-Limited Situations
+
+**New Feature:** Automatic fallback when CelesTrak rate-limits requests
+
+- When `use_local = True`, dashboard uses cached ISS data only
+- Skips all API calls to avoid 403 errors
+- Clear info message: "Local Mode: Using cached ISS data only (API disabled)"
+- Easy toggle in code for developers
+
+**Files Changed:**
+- `src/dashboard.py` - Camera position, demo defaults, local mode handling, epoch display
+- `src/iss_tracker_json.py` - Added `extract_epoch_from_tle_line1()` function
+
+---
+
 ## 2026-01-17 - UI Enhancements & Cesium Bridge MVP
 
 ### ✅ Demo Mode: Full Traffic View & Space Statistics

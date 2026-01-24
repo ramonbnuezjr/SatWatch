@@ -14,8 +14,10 @@ A real-time Streamlit dashboard for tracking the International Space Station (IS
 - 🎯 **Focus Mode**: Toggle to highlight your tracked satellites with nearby objects as secondary
 - 🛰️ **Multi-Satellite Tracking**: Track multiple satellites from your `satellites.json` configuration
 - 🌐 **3D Orbit View**: Interactive 3D visualization with Plotly showing Earth, satellites, and orbit paths
-- 🚀 **Demo Mode: Full Traffic**: Display 500-1000 active satellites to visualize space traffic density
+- 🚀 **Demo Mode: Full Traffic**: Display 30-100 active satellites to visualize space traffic density (enabled by default)
 - 📊 **Space Statistics**: Real-world numbers showing 25,000+ tracked objects and ~500,000 debris pieces
+- 🌍 **Optimized Demo View**: Maximized Earth visualization on initial load
+- 📁 **Local Mode**: Fallback to cached data when API is rate-limited
 
 ## Installation
 
@@ -383,6 +385,28 @@ Code syntax error due to incorrect indentation (usually after code updates)
 4. **Report issue**: If problem persists, check GitHub issues or report the error
 
 **Status**: ✅ **Fixed** - All known indentation errors have been resolved
+
+### Using Local Mode (When API is Rate-Limited)
+
+If CelesTrak is rate-limiting your requests (403 Forbidden errors), you can switch to local mode:
+
+**To enable local mode:**
+1. Open `src/dashboard.py`
+2. Find line ~1840: `use_local = False`
+3. Change to: `use_local = True`
+4. Save and refresh the dashboard
+
+**What local mode does:**
+- Uses cached ISS TLE data from `data/iss_tle.json`
+- Skips all CelesTrak API calls
+- Shows only ISS (no other tracked satellites)
+- Displays info message: "Local Mode: Using cached ISS data only"
+
+**To return to API mode:**
+- Change `use_local = True` back to `use_local = False`
+- Wait 15-30 minutes if you were rate-limited
+
+**Note:** Local data may be outdated. For fresh data, use API mode when possible.
 
 ## Customization
 

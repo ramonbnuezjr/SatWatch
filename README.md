@@ -26,8 +26,11 @@ A Python project for tracking satellites in real-time, starting with the Interna
 - ✅ **Focus Mode** - Toggle to highlight your tracked satellites with nearby objects as secondary
 - ✅ **Timeline Controls** - View satellite positions at any date/time (past or future)
 - ✅ **CesiumJS 3D Globe** - Professional WebGL visualization with time animation
-- ✅ **Demo Mode: Full Traffic** - Display 500-1000 satellites to show space traffic density
+- ✅ **Demo Mode: Full Traffic** - Display 30-100 satellites to show space traffic density (enabled by default)
 - ✅ **Space Statistics Panel** - Real numbers: 25,000+ tracked objects, ~500,000 debris pieces
+- ✅ **Optimized Demo View** - Maximized Earth visualization on initial load
+- ✅ **TLE Epoch Extraction** - Extracts epoch from TLE Line 1 for accurate data freshness display
+- ✅ **Local Mode Fallback** - Use cached data when CelesTrak is rate-limiting
 - ✅ **TESTED AND VERIFIED** - Core ISS tracking and dashboard successfully tested and working
 
 ### In Progress / Known Issues ⚠️
@@ -58,7 +61,7 @@ If you see errors like "403 Client Error: Forbidden" or "Could not download ISS 
 |-------|----------|
 | **Too many requests** | Wait 15-30 minutes, then refresh |
 | **Rapid testing** | Space out requests, don't toggle "Show Full Traffic" rapidly |
-| **Need immediate access** | Temporarily use local file mode (edit `src/dashboard.py` line 1827: `use_local = True`) |
+| **Need immediate access** | Temporarily use local file mode (edit `src/dashboard.py` line ~1840: `use_local = True`) |
 
 **The system automatically:**
 - Tries 3LE format first (more reliable, less rate-limited)

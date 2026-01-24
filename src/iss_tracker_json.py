@@ -12,7 +12,50 @@ import json
 import os
 import requests
 from pathlib import Path
+from datetime import datetime, timezone, timedelta
 from skyfield.api import load, EarthSatellite
+
+
+def extract_epoch_from_tle_line1(tle_line1: str) -> str:
+    """
+    Extract the epoch datetime from TLE Line 1.
+    
+    TLE Line 1 format: epoch is at characters 18-32 as YYDDD.DDDDDDDD
+    - YY = year (00-56 = 2000-2056, 57-99 = 1957-1999)
+    - DDD = day of year
+    - .DDDDDDDD = fractional part of the day
+    
+    Args:
+        tle_line1: TLE Line 1 string
+        
+    Returns:
+        str: ISO format datetime string, or None if parsing fails
+    """
+    try:
+        # Extract epoch portion (characters 18-32)
+        epoch_str = tle_line1[18:32].strip()
+        
+        # Parse year (2-digit)
+        year_2digit = int(epoch_str[:2])
+        # Year convention: 00-56 = 2000-2056, 57-99 = 1957-1999
+        if year_2digit >= 57:
+            year = 1900 + year_2digit
+        else:
+            year = 2000 + year_2digit
+        
+        # Parse day of year and fractional day
+        day_fraction = float(epoch_str[2:])
+        day_of_year = int(day_fraction)
+        fractional_day = day_fraction - day_of_year
+        
+        # Convert to datetime
+        # Start with January 1 of the year, then add days
+        epoch_dt = datetime(year, 1, 1, tzinfo=timezone.utc) + \
+                   timedelta(days=day_of_year - 1 + fractional_day)
+        
+        return epoch_dt.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
+    except Exception:
+        return None
 
 
 def load_iss_tle_from_file(file_path: str = None) -> dict:
@@ -106,6 +149,9 @@ def download_iss_tle_json() -> dict:
                 
                 # Validate TLE format
                 if tle_line1.startswith('1 ') and tle_line2.startswith('2 '):
+                    # Extract epoch from TLE Line 1
+                    epoch = extract_epoch_from_tle_line1(tle_line1)
+                    
                     # Convert to JSON-like format
                     return {
                         'OBJECT_NAME': name_line,
@@ -113,7 +159,7 @@ def download_iss_tle_json() -> dict:
                         'NORAD_CAT_ID': '25544',
                         'TLE_LINE1': tle_line1,
                         'TLE_LINE2': tle_line2,
-                        'EPOCH': None  # Will be extracted from TLE if needed
+                        'EPOCH': epoch
                     }
     except Exception:
         pass  # Fall through to next method
